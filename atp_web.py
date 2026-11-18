@@ -456,6 +456,7 @@ class ATPWebEngine:
     # ---- Internal helpers ----
     def _snap(self, name, page=None):
         pg = page or self.router_page
+        self._last_snap_page = pg
         d = os.path.join(REPORT_ROOT, datetime.now().strftime("%Y%m%d_%H%M%S"))
         os.makedirs(d, exist_ok=True)
         path = os.path.join(d, name)
@@ -471,7 +472,61 @@ class ATPWebEngine:
         <div style="color:#569cd6;margin-bottom:8px;">$ {safe_cmd}</div>
         <pre style="white-space:pre-wrap;">{out[-4000:]}</pre></body></html>"""
         self.term_page.set_content(html_c)
+        self._last_snap_page = self.term_page
         self.term_page.screenshot(path=path, full_page=True)
+        return path
+
+    # ---- Screenshot annotation: red highlight boxes -----------------------
+
+    def _highlight_regions(self, path, selectors, page=None):
+        """Draw TP-Link red rounded rectangles around elements matched by
+        `selectors` on the screenshot image, then save back to `path`.
+
+        Coordinates are computed in page-document space
+        (getBoundingClientRect + scroll offset) and scaled to the
+        full-page screenshot size, so they stay correct regardless of
+        scroll position when the snapshot was taken.
+        """
+        try:
+            from PIL import Image, ImageDraw
+        except ImportError:  # pragma: no cover - Pillow is a hard dependency
+            return path
+        pg = page or self.router_page
+        if pg is None:
+            return path
+        try:
+            with Image.open(path) as im:
+                W, H = im.size
+                doc_w, doc_h = pg.evaluate(
+                    '() => [document.documentElement.scrollWidth || window.innerWidth, '
+                    'document.documentElement.scrollHeight || window.innerHeight]'
+                )
+                boxes = pg.evaluate(
+                    '(sels) => sels.map(sel => {'
+                    '  const el = document.querySelector(sel);'
+                    '  if (!el) return null;'
+                    '  const r = el.getBoundingClientRect();'
+                    '  return [r.x + window.scrollX, r.y + window.scrollY, r.width, r.height];'
+                    '})',
+                    selectors,
+                )
+                scale_x = W / doc_w if doc_w else 1.0
+                scale_y = H / doc_h if doc_h else 1.0
+                d = ImageDraw.Draw(im)
+                for box in boxes:
+                    if not box:
+                        continue
+                    x1, y1, bw, bh = box
+                    x2, y2 = x1 + bw, y1 + bh
+                    d.rounded_rectangle(
+                        [x1 * scale_x, y1 * scale_y, x2 * scale_x, y2 * scale_y],
+                        radius=8,
+                        outline=(220, 38, 38),  # TP-Link red #dc2626
+                        width=6,
+                    )
+                im.save(path)
+        except Exception:  # nosec B110 - annotation must never fail a test run
+            pass
         return path
 
     def _connect_wifi(self, ssid, pw):
@@ -498,12 +553,33 @@ ENGINE = ATPWebEngine()
 # ---------------- Background execution ----------------
 
 
+def apply_case_highlights(engine, case_id, imgs):
+    """If the case passed and has highlight selectors configured, draw red
+    boxes on its final screenshot (the case's end-state view) and return
+    the image list unchanged otherwise. Annotation never fails a run."""
+    if not imgs:
+        return imgs
+    highlights = CONFIG.get("case_highlights", {}).get(case_id)
+    if not highlights:
+        return imgs
+    page = getattr(engine, "_last_snap_page", None) or engine.router_page
+    if page is None:
+        return imgs
+    try:
+        engine._highlight_regions(imgs[-1], highlights, page)
+    except Exception:  # nosec B110 - annotation must never fail a test run
+        pass
+    return imgs
+
+
 def run_case_async(case_id):
     with state_lock:
         state[case_id] = {"status": "RUNNING", "detail": "", "screenshots": [],
                           "logs": "", "start": datetime.now().strftime("%H:%M:%S"), "end": None}
     try:
         status, detail, imgs, logs = ENGINE.run(case_id)
+        if status == "PASS":
+            imgs = apply_case_highlights(ENGINE, case_id, imgs)
         with state_lock:
             state[case_id].update({"status": status, "detail": detail,
                                    "screenshots": imgs, "logs": logs,

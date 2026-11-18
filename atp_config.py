@@ -61,6 +61,10 @@ DEFAULT_CONFIG = {
     "run_destructive": _env("ATP_RUN_DESTRUCTIVE", "false").lower() == "true",
     "headed": _env("ATP_HEADED", "false").lower() == "true",
     "sensitive_regions": {},
+    # case_id -> list of CSS selectors to highlight with red boxes on the
+    # final PASS screenshot of that case. Filled per router model via
+    # config.json / Web UI, e.g. {"1.1": ["#login-btn", "text=Basic"]}.
+    "case_highlights": {},
 }
 
 
