@@ -12,7 +12,7 @@ from socketserver import TCPServer
 from flask import Flask, request, jsonify, send_from_directory
 import requests
 
-from atp_config import load_config, save_config, sanitize_config
+from atp_config import load_config, save_config, sanitize_config, validate_config
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 REPORT_ROOT = os.path.join(BASE, "reports")
@@ -665,6 +665,13 @@ def api_config():
     if request.method == "GET":
         return jsonify({"ok": True, "config": sanitize_config(CONFIG)})
     data = request.get_json(force=True)
+    # 先在副本上校验，失败时不污染全局 CONFIG，避免后续执行逻辑读到非法配置
+    candidate = dict(CONFIG)
+    candidate.update(data)
+    try:
+        validate_config(candidate)
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": "Config validation failed", "details": str(exc)}), 400
     CONFIG.update(data)
     save_config(CONFIG)
     return jsonify({"ok": True})

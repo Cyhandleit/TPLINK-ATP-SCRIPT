@@ -104,6 +104,11 @@ p, span, div { font-size: 0.875rem; }
 }
 .sidebar-footer{padding:14px 18px;font-size:0.7rem;color:var(--color-text-muted);border-top:1px solid var(--color-border);flex-shrink:0}
 .sidebar-version{font-weight:700;color:var(--color-text-secondary);margin-bottom:4px}
+/* 移动端侧边栏遮罩层：打开侧边栏时显示，点击页面外区域关闭 */
+.sidebar-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:25;opacity:0;pointer-events:none;transition:opacity .25s ease;backdrop-filter:blur(2px)
+}
+.sidebar.open ~ .sidebar-overlay{opacity:1;pointer-events:auto}
 .sidebar-footer code{
   color:var(--color-brand);background:#eef4fb;padding:1px 5px;border-radius:4px;
 }
@@ -340,7 +345,8 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
 @media (min-width:769px){
   .sidebar{transform:translateX(0)!important}
   .app-body{margin-left:240px!important}
-  .nav-toggle{display:block}
+  /* 桌面端侧边栏常驻可见，☰ 切换按钮无需展示 */
+  .nav-toggle{display:none}
 }
 </style>
 </head>
@@ -362,6 +368,7 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
       <div class='sidebar-hint'>截图红框高亮：在配置中填写 <code>case_highlights</code></div>
     </div>
   </aside>
+  <div class='sidebar-overlay' id='sidebar-overlay' onclick='closeSidebar()'></div>
 
   <div class='app-body'>
     <header class='topbar'>
@@ -647,6 +654,7 @@ function navigate(ev, el){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   $('#'+'view-'+view).classList.add('active');
   activeView = view;
+  closeSidebar();
   $('#view-title').textContent = el.querySelector('.nav-label').textContent;
   $('#view-sub').textContent = {
     dashboard:'测试用例执行状态与快速启动',
@@ -661,6 +669,10 @@ function navigate(ev, el){
 function toggleSidebar(){
   const s=$('#sidebar'); s.classList.toggle('open');
 }
+function closeSidebar(){
+  const s=$('#sidebar'); s.classList.remove('open');
+}
+document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeSidebar(); });
 
 /* ---------- Load & Render ---------- */
 async function load(){
