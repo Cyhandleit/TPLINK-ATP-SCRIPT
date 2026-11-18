@@ -14,7 +14,7 @@ import shlex
 import argparse
 import platform
 import threading
-import subprocess
+import subprocess  # nosec B404
 import urllib.request
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler
@@ -91,7 +91,7 @@ CONFIG = {
 
 UI_SELECTORS = {
     "login_user": "input[type='text'], #login-username",
-    "login_pass": "input[type='password'], #login-password",
+    "login_pass": "input[type='password'], #login-password",  # nosec B105
     "login_btn": "#login-btn, button:has-text('Log In')",
     "menu_basic": "text=Basic",
     "menu_advanced": "text=Advanced",

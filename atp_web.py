@@ -2,7 +2,7 @@
 import os
 import threading
 import time
-import subprocess
+import subprocess  # nosec B404
 import shlex
 import re
 import platform
