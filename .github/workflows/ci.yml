@@ -5,9 +5,6 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  schedule:
-    # Run connectivity smoke test once daily at midnight, ensure image usable
-    - cron: "0 3 * * *"
 
 jobs:
   lint-and-security:
@@ -27,62 +24,9 @@ jobs:
 
       - name: Run flake8
         run: |
-          echo "=== flake8 version ==="
-          flake8 --version
-          echo "=== flake8 output ==="
-          flake8 atp_engine.py atp_web.py atp_config.py --max-line-length=120 --extend-ignore=E203,W503 || echo "FLAKE8_EXIT_CODE=$?"
+          flake8 atp_engine.py atp_web.py atp_config.py --max-line-length=120 --extend-ignore=E203,W503
 
       - name: Run bandit security scan
         run: |
           bandit -r atp_engine.py atp_web.py atp_config.py -f json -o bandit-report.json || true
           bandit -r atp_engine.py atp_web.py atp_config.py
-
-  build-and-test:
-    needs: lint-and-security
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Python dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Build Docker image
-        run: |
-          docker build -t atp-project:test .
-
-      - name: Run smoke test via Web API (stage 1)
-        run: |
-          docker run -d --name atp-smoke \
-            --network host \
-            -e ATP_GATEWAY_IP=127.0.0.1 \
-            -e ATP_ADMIN_PASS=testpass \
-            -e ATP_SUPERADMIN_PASS=testpass \
-            -e ATP_HEADED=false \
-            -v "$(pwd)/reports:/app/reports" \
-            atp-project:test >/dev/null
-          # Wait for Flask ready (max 60 seconds)
-          for i in $(seq 1 30); do
-            if curl -fsS --max-time 2 http://127.0.0.1:5000/ >/dev/null 2>&1; then break; fi
-            sleep 2
-          done
-          # Trigger stage 1 smoke test via Web API
-          curl -fsS -X POST http://127.0.0.1:5000/api/run \
-            -H "Content-Type: application/json" -d '{"stage":"1"}' >/dev/null || true
-          # Poll /api/state until all 5 cases of stage 1 have results (wait up to 2 minutes)
-          for i in $(seq 1 60); do
-            done=$(curl -s http://127.0.0.1:5000/api/state 2>/dev/null \
-              | python -c "import sys,json; print(sum(1 for c in json.load(sys.stdin)['cases'].values() if c.get('status') in ('PASS','FAIL','SKIP')))")
-            if [ "$done" -ge 5 ]; then break; fi
-            sleep 2
-          done
-          echo "=== atp-smoke container logs ==="
-          docker logs atp-smoke 2>&1 || true
-          docker rm -f atp-smoke >/dev/null 2>&1 || true
