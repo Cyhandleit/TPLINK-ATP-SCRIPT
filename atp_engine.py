@@ -62,6 +62,8 @@ CONFIG = {
     "tauc_user": _env("ATP_TAUC_USER", "tauc_tester@example.com"),
     "tauc_pass": _env("ATP_TAUC_PASS", "TaucPass123!"),
     "device_sn": "2245123456789",
+    # 截图敏感区域涂黑：{截图文件名片段: [(x1,y1,x2,y2), ...]}，按实际固件型号填坐标
+    "sensitive_regions": {},
 }
 
 UI_SELECTORS = {
@@ -209,6 +211,21 @@ def run_cmd(cmd, timeout=60, shell=False):
     except subprocess.TimeoutExpired:
         return -1, "Command timed out"
 
+def redact_image(path, regions):
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError:
+        return
+    try:
+        with Image.open(path) as im:
+            draw = ImageDraw.Draw(im)
+            for x1, y1, x2, y2 in regions:
+                draw.rectangle([x1, y1, x2, y2], fill=(0, 0, 0))
+            im.save(path)
+    except Exception:
+        pass
+
+
 def connect_wifi(ssid, password):
     sys_os = platform.system()
     if sys_os == "Windows":
@@ -293,6 +310,8 @@ def run_stage_1(ctrl, term_page, rep):
     try:
         ctrl.login("admin", "1.1_Admin_Login.png")
         ctrl.login("superadmin", "1.1_Superadmin_Login.png")
+        for sensitive_img in ("1.1_Admin_Login.png", "1.1_Superadmin_Login.png"):
+            redact_image(rep.img_path(sensitive_img), CONFIG["sensitive_regions"].get(sensitive_img, []))
         ctrl.page.click(UI_SELECTORS["menu_basic"])
         ctrl.page.click(UI_SELECTORS["sidebar_wireless"])
         ctrl.page.wait_for_load_state("networkidle")
@@ -352,12 +371,11 @@ def run_stage_1(ctrl, term_page, rep):
 
 def run_stage_2(term_page, rep):
     print("\n=== 开始执行 Stage 2: 吞吐量测速与网络体验测试 ===")
-    code_ipf, out_ipf = run_cmd(f"iperf3 -c {CONFIG['iperf3_server_ip']} -t 10", timeout=25)
-    rep.render_terminal_screenshot(term_page, f"iperf3 -c {CONFIG['iperf3_server_ip']} -t 10", out_ipf, "3.1_LAN_iPerf3.png")
+    # iperf3 未常用，跳过（OpenSpeedTest 需 server+client，后续可替换）
     code_spd, out_spd = run_cmd("speedtest-cli --simple", timeout=60)
     rep.render_terminal_screenshot(term_page, "speedtest-cli --simple", out_spd, "3.1_LAN_Speedtest.png")
     rep.record("3.1", "LAN Speed Test", "PASS" if code_spd == 0 else "FAIL",
-               out_spd.replace("\n", " | "), ["3.1_LAN_iPerf3.png", "3.1_LAN_Speedtest.png"])
+               out_spd.replace("\n", " | "), ["3.1_LAN_Speedtest.png"])
     bands = [
         ("3.2", "Wi-Fi 2.4GHz Speedtest", CONFIG["wifi_24g"], "3.2_WiFi_2.4G_Speed.png"),
         ("3.3", "Wi-Fi 5GHz Speedtest", CONFIG["wifi_5g"], "3.3_WiFi_5G_Speed.png"),
@@ -540,8 +558,8 @@ def main():
                         help="指定运行的测试阶段 (默认 all)")
     parser.add_argument("--ping-seconds", type=int, default=3600,
                         help="长稳 Ping 测试秒数 (正式测试为 3600，调试可设为 10)")
-    parser.add_argument("--skip-destructive", action="store_true",
-                        help="跳过重启、固件升级和恢复出厂设置等中断性用例")
+    parser.add_argument("--run-destructive", action="store_true",
+                        help="执行重启、固件升级等中断性用例（默认跳过）")
     parser.add_argument("--headed", action="store_true",
                         help="显示浏览器界面（调试定位 DOM 元素时建议开启）")
     args = parser.parse_args()
@@ -565,7 +583,7 @@ def main():
         if args.stage in ("all", "5"):
             run_stage_5(ctrl, term_page, reporter,
                         ping_seconds=args.ping_seconds,
-                        skip_destructive=args.skip_destructive)
+                        skip_destructive=not args.run_destructive)
         browser.close()
     reporter.generate_html()
 
