@@ -6,47 +6,10 @@ from socketserver import TCPServer
 from flask import Flask, render_template_string, request, jsonify, send_from_directory
 import requests
 
+from atp_config import load_config, save_config, sanitize_config, DEFAULT_CONFIG
+
 BASE = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(BASE, "config.json")
 REPORT_ROOT = os.path.join(BASE, "reports")
-
-DEFAULT_CONFIG = {
-    "gateway_ip": "192.168.1.1",
-    "gateway_scheme": "http",
-    "admin_user": os.environ.get("ATP_ADMIN_USER", "admin"),
-    "admin_pass": os.environ.get("ATP_ADMIN_PASS", ""),
-    "superadmin_user": os.environ.get("ATP_SUPERADMIN_USER", "superadmin"),
-    "superadmin_pass": os.environ.get("ATP_SUPERADMIN_PASS", ""),
-    "lan_iface": "Ethernet",
-    "wifi_iface": "Wi-Fi",
-    "ext_nic_ip": "192.168.43.100",
-    "iperf3_server_ip": "192.168.1.100",
-    "http_forward_port": 30000,
-    "firmware_bin_path": "./firmware_new.bin",
-    "acs_api_url": "http://192.168.1.200:7557",
-    "acs_device_id": "001122-EX820v-SN12345678",
-    "tauc_url": "https://tauc.tp-link.com",
-    "tauc_user": "tauc_tester@example.com",
-    "tauc_pass": os.environ.get("ATP_TAUC_PASS", ""),
-    "ping_seconds": 300,
-    "run_destructive": False,
-    "headed": False,
-    "sensitive_regions": {},
-}
-
-# ---------------- 配置持久化 ----------------
-def load_config():
-    cfg = dict(DEFAULT_CONFIG)
-    if os.path.exists(CONFIG_FILE):
-        try:
-            cfg.update(json.load(open(CONFIG_FILE, encoding="utf-8")))
-        except Exception:
-            pass
-    return cfg
-
-def save_config(cfg):
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, ensure_ascii=False, indent=2)
 
 CONFIG = load_config()
 
@@ -520,110 +483,11 @@ def run_stage_async(stage):
         run_case_async(cid)
 
 # ---------------- 路由 ----------------
-INDEX_HTML = """<!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>TP-Link ATP Web UI</title>
-<style>
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:20px;background:#f5f7fa}
-h1{margin:0 0 12px}
-.card{background:#fff;border-radius:8px;padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
-.row{display:flex;gap:12px;flex-wrap:wrap}
-label{font-size:13px;color:#666;display:block;margin:6px 0 2px}
-input{padding:6px 8px;border:1px solid #ccc;border-radius:4px;width:220px}
-button{padding:8px 14px;border:none;border-radius:4px;cursor:pointer;font-size:13px}
-button.primary{background:#005a9e;color:#fff}
-button.danger{background:#dc3545;color:#fff}
-button.small{padding:4px 8px;font-size:12px}
-button:disabled{opacity:.6;cursor:not-allowed}
-table{width:100%;border-collapse:collapse;margin-top:8px}
-th,td{border:1px solid #ddd;padding:6px 8px;text-align:left;font-size:13px}
-th{background:#005a9e;color:#fff}
-td.status{width:110px}
-td.actions{width:140px}
-.pending{color:#999}.running{color:#e0a800}.pass{color:#28a745}.fail{color:#dc3545}.skip{color:#6c757d}
-img.preview{max-width:260px;max-height:150px;border:1px solid #ddd;margin-top:4px;display:block}
-.logs{background:#1e1e1e;color:#d4d4d4;padding:8px;border-radius:4px;font-family:Consolas,monospace;font-size:11px;max-height:200px;overflow:auto;white-space:pre-wrap}
-.section-title{font-weight:600;margin-top:16px;margin-bottom:8px;color:#005a9e}
-.config-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
-#toast{position:fixed;top:16px;right:16px;background:#333;color:#fff;padding:8px 12px;border-radius:4px;display:none;z-index:9999}
-</style></head>
-<body>
-<h1>TP-Link ATP 自动化测试 UI</h1>
-
-<div class="card">
-  <h2 style="margin:0 0 12px">⚙️ 测试配置</h2>
-  <div class="config-grid" id="cfg"></div>
-  <div style="margin-top:12px">
-    <button class="primary" onclick="saveConfig()">保存配置</button>
-    <button onclick="location.reload()">重置</button>
-  </div>
-</div>
-
-<div class="card">
-  <h2 style="margin:0 0 12px">📋 测试用例看板</h2>
-  <div class="row" style="margin-bottom:8px">
-    <button class="primary" onclick="runStage('all')">运行全部</button>
-    <button onclick="runStage('1')">Stage 1</button>
-    <button onclick="runStage('2')">Stage 2</button>
-    <button onclick="runStage('3')">Stage 3</button>
-    <button onclick="runStage('4')">Stage 4</button>
-    <button onclick="runStage('5')">Stage 5</button>
-    <button class="danger" onclick="refresh()">刷新状态</button>
-    <span id="busy" style="color:#dc3545;font-weight:bold;display:none">执行中…</span>
-  </div>
-  <table id="tbl"><thead><tr><th>用例</th><th>标题</th><th>阶段</th><th>状态</th><th>详情</th><th>时间</th><th>截图</th><th>操作</th></tr></thead><tbody></tbody></table>
-</div>
-
-<div id="toast"></div>
-
-<script>
-let cfg = {};
-function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',3000)}
-async function load(){const r=await fetch('/api/state');const d=await r.json();render(d.cases, d.config)}
-function render(cases, config){
-  cfg=config||{};
-  document.getElementById('cfg').innerHTML = Object.entries(config).map(([k,v])=>{
-    const type = typeof v === 'boolean' ? 'checkbox' : 'text';
-    return `<div><label>${k}</label><input ${type==='checkbox'?`${v?'checked':''}`:(`value="${v}"`)} onchange="cfg['${k}']=this.checked!==undefined?this.checked:this.value" />${type==='checkbox'?'':' (文本)'}</div>`;
-  }).join('');
-  const tbody=document.getElementById('tbl').querySelector('tbody');
-  tbody.innerHTML='';
-  for(const [cid,title,stage] of Object.entries(cases)){
-    const c=cases[cid];
-    const cls=c.status.toLowerCase();
-    let imgHtml='';
-    for(const s of (c.screenshots||[])){
-      imgHtml+=`<a href="${encodeURI(s)}" target="_blank"><img class="preview" src="${encodeURI(s)}"></a>`;
-    }
-    let action=`<button class="small primary" onclick="runOne('${cid}')">运行</button>`;
-    if(c.status==='FAIL') action+=` <button class="small danger" onclick="runOne('${cid}')">Restart</button>`;
-    else if(c.status==='PENDING') action+=` <button class="small" onclick="runOne('${cid}')">运行</button>`;
-    else if(c.status==='RUNNING') action+=`<span class="pending">进行中</span>`;
-    tbody.innerHTML+=`<tr><td><b>${cid}</b></td><td>${title}</td><td>Stage ${stage}</td>
-      <td class="status ${cls}">${c.status}</td><td>${c.detail||''}</td><td>${c.start||''}-${c.end||''}</td>
-      <td>${imgHtml}</td><td class="actions">${action}</td></tr>`;
-  }
-  document.getElementById('busy').style.display = Object.values(cases).some(c=>c.status==='RUNNING')?'inline':'none';
-}
-async function runStage(stage){
-  await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stage})});
-  toast('已提交：'+stage); poll();
-}
-async function runOne(cid){
-  await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({case:cid})});
-  toast('运行 '+cid); poll();
-}
-async function saveConfig(){
-  await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
-  toast('配置已保存');
-}
-async function refresh(){load()}
-function poll(){setTimeout(load,2000)}
-load();setInterval(poll,3000);
-</script></body></html>"""
 
 @app.route("/")
 def index():
-    return render_template_string(INDEX_HTML)
+    with open(os.path.join(BASE, "templates", "index.html"), encoding="utf-8") as f:
+        return f.read()
 
 @app.route("/api/state")
 def api_state():
@@ -632,11 +496,13 @@ def api_state():
     # 把绝对路径截图变成可通过 /screenshot 访问的相对路径
     for cid, c in cases.items():
         c["screenshots"] = ["/screenshot/" + os.path.relpath(p, BASE) if os.path.isabs(p) else p for p in c.get("screenshots", [])]
-    return jsonify({"cases": cases, "config": CONFIG})
+    return jsonify({"cases": cases, "config": sanitize_config(CONFIG)})
 
-@app.route("/api/config", methods=["POST"])
+@app.route("/api/config", methods=["GET", "POST"])
 def api_config():
     global CONFIG
+    if request.method == "GET":
+        return jsonify({"ok": True, "config": sanitize_config(CONFIG)})
     data = request.get_json(force=True)
     CONFIG.update(data)
     save_config(CONFIG)
@@ -647,17 +513,28 @@ def api_run():
     data = request.get_json(force=True)
     stage = data.get("stage")
     case = data.get("case")
+    overrides = data.get("config") or {}
     if not exec_lock.acquire(blocking=False):
         return jsonify({"ok": False, "error": "有测试正在执行，请稍后再试"}), 409
     def job():
         try:
-            if case:
-                run_case_async(case)
-            elif stage == "all":
-                for cid, _, _ in CASES:
-                    run_case_async(cid)
-            else:
-                run_stage_async(stage)
+            # 临时应用前端传入的配置覆盖（网关 IP、登录凭证等），执行完恢复
+            old = {k: CONFIG[k] for k in overrides if k in CONFIG}
+            CONFIG.update(overrides)
+            try:
+                if case:
+                    run_case_async(case)
+                elif stage == "all":
+                    for cid, _, _ in CASES:
+                        run_case_async(cid)
+                else:
+                    run_stage_async(stage)
+            finally:
+                for k in overrides:
+                    if k in old:
+                        CONFIG[k] = old[k]
+                    else:
+                        CONFIG.pop(k, None)
         finally:
             exec_lock.release()
     threading.Thread(target=job, daemon=True).start()
@@ -673,4 +550,4 @@ def screenshot(fpath):
 
 if __name__ == "__main__":
     os.makedirs(REPORT_ROOT, exist_ok=True)
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=os.environ.get("ATP_DEBUG", "0") == "1")
