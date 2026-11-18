@@ -1,12 +1,18 @@
 """TP-Link ATP Web UI — Flask test platform (config, dashboard, per-case restart)."""
-import os, json, threading, time, subprocess, shlex, re, platform
+import os
+import threading
+import time
+import subprocess
+import shlex
+import re
+import platform
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler
 from socketserver import TCPServer
-from flask import Flask, render_template_string, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory
 import requests
 
-from atp_config import load_config, save_config, sanitize_config, DEFAULT_CONFIG
+from atp_config import load_config, save_config, sanitize_config
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 REPORT_ROOT = os.path.join(BASE, "reports")
@@ -50,12 +56,15 @@ exec_lock = threading.Lock()
 app = Flask(__name__)
 
 # ---------------- Utilities ----------------
+
+
 def run_cmd(cmd, timeout=60, shell=False):
     try:
         p = subprocess.run(cmd, shell=shell, capture_output=True, text=True, timeout=timeout)
         return p.returncode, p.stdout + p.stderr
     except subprocess.TimeoutExpired:
         return -1, "Command timed out"
+
 
 def run_ping_stats(target, count=10, ipv6=False):
     is_win = platform.system() == "Windows"
@@ -71,6 +80,7 @@ def run_ping_stats(target, count=10, ipv6=False):
         m2 = re.search(r"min/avg/max/[^=]+=\s*[\d.]+/([\d.]+)/", out)
     avg = float(m2.group(1)) if m2 else 999.0
     return loss, avg, " ".join(cmd) if isinstance(cmd, list) else cmd, out
+
 
 def wait_router_online(timeout=180):
     import urllib.request
@@ -88,6 +98,7 @@ def wait_router_online(timeout=180):
         time.sleep(3)
     return False
 
+
 def redact_image(path, regions):
     try:
         from PIL import Image, ImageDraw
@@ -103,6 +114,8 @@ def redact_image(path, regions):
         pass
 
 # ---------------- Test executor ----------------
+
+
 class ATPWebEngine:
     def __init__(self):
         self.playwright = None
@@ -152,6 +165,7 @@ class ATPWebEngine:
     def run(self, case_id):
         """Run a single case, return (status, detail, screenshots, logs)."""
         logs = []
+
         def log(msg):
             logs.append(msg)
             print(msg)
@@ -239,8 +253,9 @@ class ATPWebEngine:
                 if not ok:
                     return ("SKIP", f"Unable to connect SSID: {ssid}", [], "\n".join(logs))
                 c, o = run_cmd("speedtest-cli --simple", timeout=60)
-                self._term_snap(f"[{ssid}] speedtest-cli --simple", o, f"{case_id.replace('/','_')}_WiFi_Speed.png")
-                return ("PASS" if c == 0 else "FAIL", o.replace("\n", " | "), [f"{case_id.replace('/','_')}_WiFi_Speed.png"], "\n".join(logs))
+                self._term_snap(f"[{ssid}] speedtest-cli --simple", o, f"{case_id.replace('/', '_')}_WiFi_Speed.png")
+                return ("PASS" if c == 0 else "FAIL", o.replace("\n", " | "), [
+                        f"{case_id.replace('/', '_')}_WiFi_Speed.png"], "\n".join(logs))
 
             if case_id == "3.5":
                 self.start_browser()
@@ -276,7 +291,10 @@ class ATPWebEngine:
                         break
                 mbps = (downloaded * 8) / ((time.time() - t0) * 1_000_000)
                 self._term_snap(f"GET {url}",
-                                f"Downloaded: {downloaded / (1024*1024):.2f} MB in {time.time()-t0:.1f}s\nAvg Throughput: {mbps:.2f} Mbps",
+                                f"Downloaded: {downloaded /
+                                               (1024 *
+                                                1024):.2f} MB in {time.time() -
+                                                                  t0:.1f}s\nAvg Throughput: {mbps:.2f} Mbps",
                                 "3.7_P2P_Heavy_Download.png")
                 return ("PASS" if downloaded > 0 else "FAIL", f"Average download speed {mbps:.2f} Mbps",
                         ["3.7_P2P_Heavy_Download.png"], "\n".join(logs))
@@ -287,9 +305,11 @@ class ATPWebEngine:
                 os.makedirs("temp_www", exist_ok=True)
                 with open("temp_www/index.html", "w", encoding="utf-8") as f:
                     f.write("<html><body><h1>TP-Link ATP Port Forwarding OK</h1></body></html>")
+
                 class H(SimpleHTTPRequestHandler):
                     def __init__(self, *a, **k):
                         super().__init__(*a, directory="temp_www", **k)
+
                     def log_message(self, *a):
                         pass
                 TCPServer.allow_reuse_address = True
@@ -310,10 +330,11 @@ class ATPWebEngine:
                             r = s.get(f"http://{pub}:{port}", timeout=10)
                             ok = r.status_code == 200 and "Port Forwarding OK" in r.text
                             return ("PASS" if ok else "FAIL",
-                                      f"External access to {pub}:{port} status code={r.status_code}", [img], "\n".join(logs))
+                                    f"External access to {pub}:{port} status code={r.status_code}", [img], "\n".join(logs))
                         except Exception as e:
                             return ("FAIL", str(e), [img], "\n".join(logs))
-                    return ("PASS", "Captured Virtual Servers config page (skipping external callback assertion)", [img], "\n".join(logs))
+                    return ("PASS", "Captured Virtual Servers config page (skipping external callback assertion)", [
+                            img], "\n".join(logs))
                 finally:
                     srv.shutdown()
                     srv.server_close()
@@ -327,15 +348,17 @@ class ATPWebEngine:
                            "4.15": "text=Wireless"}
                 self.router_page.click(sel_map[case_id])
                 self.router_page.wait_for_load_state("networkidle")
-                img = self._snap(f"{case_id.replace('/','_')}_UI.png")
+                img = self._snap(f"{case_id.replace('/', '_')}_UI.png")
                 return ("PASS", f"Verified {case_id} config interface", [img], "\n".join(logs))
 
             if case_id == "10.1":
                 try:
-                    r = requests.get(f"{CONFIG['acs_api_url']}/devices/?query=%7B%22_id%22%3A%22{CONFIG['acs_device_id']}%22%7D", timeout=10)
+                    r = requests.get(
+                        f"{CONFIG['acs_api_url']}/devices/?query=%7B%22_id%22%3A%22{CONFIG['acs_device_id']}%22%7D", timeout=10)
                     devs = r.json()
                     ok = len(devs) > 0
-                    return ("PASS" if ok else "FAIL", f"GenieACS queried device {CONFIG['acs_device_id']} online={ok}", [], "\n".join(logs))
+                    return ("PASS" if ok else "FAIL",
+                            f"GenieACS queried device {CONFIG['acs_device_id']} online={ok}", [], "\n".join(logs))
                 except Exception as e:
                     return ("SKIP", f"Unable to connect GenieACS: {e}", [], "\n".join(logs))
 
@@ -353,7 +376,8 @@ class ATPWebEngine:
                     requests.post(f"{CONFIG['acs_api_url']}/devices/{CONFIG['acs_device_id']}/tasks?connection_request",
                                   json={"name": "reboot"}, timeout=15)
                     rec = wait_router_online(timeout=180)
-                    return ("PASS" if rec else "FAIL", f"ACS remote reboot, recovered online={rec}", [], "\n".join(logs))
+                    return ("PASS" if rec else "FAIL",
+                            f"ACS remote reboot, recovered online={rec}", [], "\n".join(logs))
                 except Exception as e:
                     return ("FAIL", str(e), [], "\n".join(logs))
 
@@ -458,9 +482,12 @@ class ATPWebEngine:
         except Exception:
             return ""
 
+
 ENGINE = ATPWebEngine()
 
 # ---------------- Background execution ----------------
+
+
 def run_case_async(case_id):
     with state_lock:
         state[case_id] = {"status": "RUNNING", "detail": "", "screenshots": [],
@@ -477,10 +504,12 @@ def run_case_async(case_id):
                               "logs": "", "start": state[case_id].get("start"),
                               "end": datetime.now().strftime("%H:%M:%S")}
 
+
 def run_stage_async(stage):
     ids = [cid for cid, _, s in CASES if s == stage]
     for cid in ids:
         run_case_async(cid)
+
 
 # ---------------- Input validation ----------------
 _IP_RE = re.compile(r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$")
@@ -517,10 +546,12 @@ def _report_file_url(d, fn):
 
 # ---------------- Routes ----------------
 
+
 @app.route("/")
 def index():
     with open(os.path.join(BASE, "templates", "index.html"), encoding="utf-8") as f:
         return f.read()
+
 
 @app.route("/api/state")
 def api_state():
@@ -530,21 +561,28 @@ def api_state():
         done = sum(1 for s in state.values() if s.get("status") in terminal)
     # Convert absolute screenshot paths to relative paths accessible via /screenshot
     for cid, c in cases.items():
-        c["screenshots"] = ["/screenshot/" + os.path.relpath(p, BASE) if os.path.isabs(p) else p for p in c.get("screenshots", [])]
+        c["screenshots"] = [
+            "/screenshot/" +
+            os.path.relpath(
+                p,
+                BASE) if os.path.isabs(p) else p for p in c.get(
+                "screenshots",
+                [])]
     total = len(CASES)
     percent = round(done / total * 100) if total else 0
     return jsonify({"cases": cases, "config": sanitize_config(CONFIG),
                     "progress": {"done": done, "total": total, "percent": percent}})
 
+
 @app.route("/api/config", methods=["GET", "POST"])
 def api_config():
-    global CONFIG
     if request.method == "GET":
         return jsonify({"ok": True, "config": sanitize_config(CONFIG)})
     data = request.get_json(force=True)
     CONFIG.update(data)
     save_config(CONFIG)
     return jsonify({"ok": True})
+
 
 @app.route("/api/run", methods=["POST"])
 def api_run():
@@ -584,6 +622,7 @@ def api_run():
 
     threading.Thread(target=job, daemon=True).start()
     return jsonify({"ok": True})
+
 
 @app.route("/screenshot/<path:fpath>")
 def screenshot(fpath):
@@ -631,6 +670,7 @@ def api_reports():
                 "file_count": len(files),
             })
     return jsonify({"ok": True, "reports": reports})
+
 
 if __name__ == "__main__":
     os.makedirs(REPORT_ROOT, exist_ok=True)
