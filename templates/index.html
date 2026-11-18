@@ -401,7 +401,7 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
             <div class='card-header'><span class='card-title'>快速启动</span></div>
             <div class='card-body'>
               <div class='runbar'>
-                <button class='btn success' onclick='runStage('all')'>Run All · 全部运行</button>
+                <button class='btn success' id='btn-run-all-dashboard' onclick='runStage('all')'>Run All · 全部运行</button>
               </div>
               <div class='stage-pills' style='margin-top:8px'>
                 <button class='btn ghost' onclick='runStage('1')'>Stage 1</button>
@@ -480,7 +480,7 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
           <p class='page-desc' style='font-size:0.85rem;color:var(--muted);margin-top:4px'>按 Stage 排序的用例列表；点击缩略图查看大图，红框标注自动通过截图中的关键元素</p>
         </header>
         <div class='runbar' style='margin-bottom:0'>
-          <button class='btn success' onclick='runStage('all')'>Run All · 全部运行</button>
+          <button class='btn success' id='btn-run-all-board' onclick='runStage('all')'>Run All · 全部运行</button>
           <div class='stage-pills' style='margin-left:8px'>
             <button class='btn ghost' onclick='runStage('1')'>Stage 1</button>
             <button class='btn ghost' onclick='runStage('2')'>Stage 2</button>
@@ -629,6 +629,16 @@ async function load(){
     $('#busy-chip').style.display = busy ? 'inline-flex' : 'none';
     if(activeView === 'reports') renderReports();
   }catch(e){console.error('load failed',e);}
+  // 自动恢复按钮：当所有用例都不再运行时，重置 busy 并恢复按钮状态
+  if (busy && Object.values(cases||{}).every(c => (c.status||'PENDING').toUpperCase() !== 'RUNNING')) {
+    busy = false;
+    document.querySelectorAll('button').forEach(btn => {
+      btn.disabled = false;
+      btn.classList.remove('btn-loading');
+      if (btn.dataset.originalText) btn.textContent = btn.dataset.originalText;
+      delete btn.dataset.originalText;
+    });
+  }
 }
 async function loadReports(){
   try{
@@ -674,13 +684,13 @@ function renderDashboard(){
     const cls=status.toLowerCase();
     let imgs='';
     for(const s of (c.screenshots||[])){
-      imgs+=`<a onclick="openLightbox('${esc(s)}', '${esc(cid)} • ${esc(meta.title)}')" style='cursor:pointer'><img src='${esc(s)}' onerror='this.style.display=`+'`'+"none"+`$`' alt=''></a>`;
+      imgs+=`<a onclick="openLightbox('${esc(s)}', '${esc(cid)} • ${esc(meta.title)}')" style='cursor:pointer'><img src='${esc(s)}' alt='${esc(cid)} ${esc(meta.title)} 截图' onerror='this.style.display=`+'`'+"none"+`$`' alt='${esc(cid)} ${esc(meta.title)} 截图'></a>`;
     }
     let action='';
-    if(status==='FAIL') action+=`<button class='btn small danger' onclick="runOne('${esc(cid)}')">Retry</button>`;
-    else if(status==='PENDING'||!status) action+=`<button class='btn small ghost' onclick="runOne('${esc(cid)}')">Run</button>`;
+    if(status==='FAIL') action+=`<button class='btn small danger' onclick="runOne(event, '${esc(cid)}')">Retry</button>`;
+    else if(status==='PENDING'||!status) action+=`<button class='btn small ghost' onclick="runOne(event, '${esc(cid)}')">Run</button>`;
     else if(status==='RUNNING') action+=`<span class='status RUNNING dot'>Running</span>`;
-    else if(status==='PASS') action+=`<button class='btn small ghost' onclick="runOne('${esc(cid)}')">Run again</button>`;
+    else if(status==='PASS') action+=`<button class='btn small ghost' onclick="runOne(event, '${esc(cid)}')">Run again</button>`;
     else if(status==='SKIP') action+=`<span class='status SKIP dot'>Skipped</span>`;
     tbody.innerHTML+=`<tr>
       <td><span class='case-id'>${esc(cid)}</span></td>
@@ -739,18 +749,18 @@ function renderBoard(){
     const timeHtml = start||end ? `${start}${end?' - '+end:''}`:'';
     let imgs='';
     for(const s of (c.screenshots||[])){
-      imgs+=`<a onclick="openLightbox('${esc(s)}', '${esc(cid)} • ${esc(meta.title)}')" style='cursor:pointer'><img src='${esc(s)}' onerror='this.style.display=`+'`'+"none"+`$`' alt=''></a>`;
+      imgs+=`<a onclick="openLightbox('${esc(s)}', '${esc(cid)} • ${esc(meta.title)}')" style='cursor:pointer'><img src='${esc(s)}' alt='${esc(cid)} ${esc(meta.title)} 截图' onerror='this.style.display=`+'`'+"none"+`$`' alt='${esc(cid)} ${esc(meta.title)} 截图'></a>';
     }
     const galleryBtn = imgs?`<button class='btn icon small' onclick="openGallery('${esc(cid)}', [${(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')}])" title='查看截图'>🖼</button>`:'';
     let action='';
     if(status==='FAIL'){
-      action+=`<button class='btn small danger' onclick="runOne('${esc(cid)}')">Retry</button>`;
+      action+=`<button class='btn small danger' onclick="runOne(event, '${esc(cid)}')">Retry</button>`;
     }else if(status==='PENDING'||!status){
-      action+=`<button class='btn small ghost' onclick="runOne('${esc(cid)}')">Run</button>`;
+      action+=`<button class='btn small ghost' onclick="runOne(event, '${esc(cid)}')">Run</button>`;
     }else if(status==='RUNNING'){
       action+=`<span class='status RUNNING dot'>Running</span>`;
     }else if(status==='PASS'){
-      action+=`<button class='btn small ghost' onclick="runOne('${esc(cid)}')">Run again</button>`;
+      action+=`<button class='btn small ghost' onclick="runOne(event, '${esc(cid)}')">Run again</button>`;
     }else if(status==='SKIP'){
       action+=`<span class='status SKIP dot'>Skipped</span>`;
     }
@@ -772,7 +782,7 @@ function renderReports(){
   if(!el || activeView!=='reports') return;
   if(!reports.length){el.innerHTML=`<div class='empty-state'><p>暂无报告目录，运行用例后会在 reports/ 下产生截图与报告</p></div>`; return;}
   el.innerHTML=reports.map(r=>{
-    const thumbs=(r.screenshots||[]).slice(0,6).map(s=>`<a onclick="openLightbox('${esc(s)}', '${esc(r.name)} • 截图')" style='cursor:pointer'><img src='${esc(s)}' alt='' onerror='this.style.display=`+'`'+"none"+`$`' loading='lazy'></a>`).join('');
+    const thumbs=(r.screenshots||[]).slice(0,6).map(s=>`<a onclick="openLightbox('${esc(s)}', '${esc(r.name)} • 截图')" style='cursor:pointer'><img src='${esc(s)}' alt='${esc(r.name)} • 截图' onerror='this.style.display=`+'`'+"none"+`$`' loading='lazy'></a>`).join('');
     const more = (r.screenshots||[]).length > 6 ? `<span class='status PENDING dot'>+${r.screenshots.length-6} 张</span>` : '';
     return `<div class='card report-card'>
       <header><span class='report-name'>${esc(r.name)}</span><span class='report-meta'>${r.file_count||0} 文件 ${more}</span></header>
@@ -785,17 +795,45 @@ function renderReports(){
 /* ---------- Actions ---------- */
 async function runStage(stage){
   if(busy){toast('已有测试在执行，请稍后'); return;}
+  // 禁用所有 Run All 按钮并显示 loading
+  document.querySelectorAll("button[onclick*=\"runStage('all')\"]").forEach(btn => {
+    btn.disabled = true;
+    btn.classList.add('btn-loading');
+    btn.dataset.originalText = btn.textContent;
+    btn.textContent = '运行中…';
+  });
   const r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stage,config:cfg})});
   const d=await r.json();
-  if(!d.ok){toast(d.error||'提交失败'); return;}
+  if(!d.ok){toast(d.error||'提交失败'); restoreRunAllButtons(); return;}
   toast('已提交：Stage '+stage);
   busy=true; poll();
 }
-async function runOne(cid){
+
+function restoreRunAllButtons(){
+  document.querySelectorAll("button[onclick*=\"runStage('all')\"]").forEach(btn => {
+    btn.disabled = false;
+    btn.classList.remove('btn-loading');
+    if (btn.dataset.originalText) btn.textContent = btn.dataset.originalText;
+    delete btn.dataset.originalText;
+  });
+}
+async function runOne(event, cid){
   if(busy){toast('已有测试在执行，请稍后'); return;}
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  btn.classList.add('btn-loading');
+  btn.dataset.originalText = btn.textContent;
+  btn.textContent = '运行中…';
   const r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({case:cid,config:cfg})});
   const d=await r.json();
-  if(!d.ok){toast(d.error||'提交失败'); return;}
+  if(!d.ok){
+    toast(d.error||'提交失败');
+    btn.disabled = false;
+    btn.classList.remove('btn-loading');
+    if (btn.dataset.originalText) btn.textContent = btn.dataset.originalText;
+    delete btn.dataset.originalText;
+    return;
+  }
   toast('运行 '+cid);
   busy=true; poll();
 }
@@ -824,7 +862,7 @@ function openGallery(cid, imgs){
   const meta=CASE_META[cid]||{title:cid};
   const items=imgs.length? imgs.map((s,i)=>`
     <div style='border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#000;display:flex;flex-direction:column'>
-      <img src='${esc(s)}' style='width:100%;height:auto;max-height:48vh;object-fit:contain' alt='' onerror='this.parentElement.innerHTML=`+'`'+"<div style=padding:40px;color:#666>Image failed to load</div>"+`$`' loading='lazy'>
+      <img src='${esc(s)}' style='width:100%;height:auto;max-height:48vh;object-fit:contain' alt='${esc(cid)} ${esc(meta.title)} 截图 ${i+1}/${imgs.length}' onerror='this.parentElement.innerHTML=`+'`'+"<div style=padding:40px;color:#666>Image failed to load</div>"+`$`' loading='lazy'>
       <div class='gallery-caption'>${cid} • ${meta.title} • 截图 ${i+1}/${imgs.length}</div>
     </div>
   `).join(''):`<div class='empty-state' style='padding:24px'>暂无截图</div>`;
