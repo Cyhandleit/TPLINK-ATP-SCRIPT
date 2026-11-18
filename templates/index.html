@@ -384,7 +384,7 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
         <button class='btn success' id='btn-save' onclick='saveConfig()'>保存配置</button>
         <div class='site-select' style='display:flex;align-items:center;gap:8px;border:1px solid var(--color-border);border-radius:8px;padding:4px 10px;background:#fff;'>
           <span class='nav-icon' style='font-size:1rem'>🏢</span>
-          <select id='site-select' style='border:none;background:transparent;font-size:0.875rem;color:var(--color-text);outline:none;cursor:pointer'>
+          <select id='site-select' style='border:none;background:transparent;font-size:0.875rem;color:var(--color-text);outline:none;cursor:pointer' onchange='onSiteChange(this.value)'>
             <option value='default'>Default Site · 默认站点</option>
             <option value='lab'>Lab · 实验室环境</option>
             <option value='prod'>Prod · 生产环境</option>
@@ -412,36 +412,36 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
             <div style='display:flex;align-items:center;justify-content:space-between'>
               <div>
                 <div class='stat-label'>网关设备</div>
-                <div class='stat-value' id='stat-gateway'>1</div>
+                <div class='stat-value' id='stat-gateway'>-</div>
               </div>
-              <span class='status PASS dot'>在线</span>
+              <span class='status PENDING dot'>未连接</span>
             </div>
           </div>
           <div class='stat-card pass'>
             <div style='display:flex;align-items:center;justify-content:space-between'>
               <div>
                 <div class='stat-label'>在线 AP</div>
-                <div class='stat-value' id='stat-ap'>3</div>
+                <div class='stat-value' id='stat-ap'>-</div>
               </div>
-              <span class='status PASS dot'>3 在线</span>
+              <span class='status PENDING dot'>未知</span>
             </div>
           </div>
           <div class='stat-card fail'>
             <div style='display:flex;align-items:center;justify-content:space-between'>
               <div>
                 <div class='stat-label'>离线设备</div>
-                <div class='stat-value' id='stat-offline'>0</div>
+                <div class='stat-value' id='stat-offline'>-</div>
               </div>
-              <span class='status FAIL dot'>离线</span>
+              <span class='status PENDING dot'>未知</span>
             </div>
           </div>
           <div class='stat-card todo'>
             <div style='display:flex;align-items:center;justify-content:space-between'>
               <div>
                 <div class='stat-label'>待采集</div>
-                <div class='stat-value' id='stat-pending'>0</div>
+                <div class='stat-value' id='stat-pending'>-</div>
               </div>
-              <span class='status PENDING dot'>待处理</span>
+              <span class='status PENDING dot'>未知</span>
             </div>
           </div>
         </div>
@@ -673,6 +673,12 @@ function closeSidebar(){
   const s=$('#sidebar'); s.classList.remove('open');
 }
 document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeSidebar(); });
+
+function onSiteChange(site){
+  toast('已切换站点：'+site);
+  // 占位：后续可在此切换不同网关/站点的配置上下文
+  cfg.site = site;
+}
 
 /* ---------- Load & Render ---------- */
 async function load(){
