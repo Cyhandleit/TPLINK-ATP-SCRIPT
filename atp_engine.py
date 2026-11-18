@@ -289,7 +289,10 @@ def connect_wifi(ssid, password):
         return code == 0, out
     else:
         iface = shlex.quote(CONFIG["wifi_iface"])
-        code, out = run_cmd(f'nmcli device wifi connect "{ssid}" password "{password}" ifname {iface}', shell=True)  # nosec B604
+        code, out = run_cmd(
+            f'nmcli device wifi connect "{ssid}" password "{password}" ifname {iface}',
+            shell=True,  # nosec B604
+        )
         time.sleep(8)
         return code == 0, out
 
