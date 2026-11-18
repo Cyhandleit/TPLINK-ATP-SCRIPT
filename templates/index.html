@@ -382,14 +382,6 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
         <span class='busy-chip' id='busy-chip'><span class='busy-dot'></span>Running…</span>
         <button class='btn ghost' id='btn-refresh' onclick='refresh()'>刷新</button>
         <button class='btn success' id='btn-save' onclick='saveConfig()'>保存配置</button>
-        <div class='site-select' style='display:flex;align-items:center;gap:8px;border:1px solid var(--color-border);border-radius:8px;padding:4px 10px;background:#fff;'>
-          <span class='nav-icon' style='font-size:1rem'>🏢</span>
-          <select id='site-select' style='border:none;background:transparent;font-size:0.875rem;color:var(--color-text);outline:none;cursor:pointer' onchange='onSiteChange(this.value)'>
-            <option value='default'>Default Site · 默认站点</option>
-            <option value='lab'>Lab · 实验室环境</option>
-            <option value='prod'>Prod · 生产环境</option>
-          </select>
-        </div>
       </div>
     </header>
 
@@ -673,12 +665,6 @@ function closeSidebar(){
   const s=$('#sidebar'); s.classList.remove('open');
 }
 document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeSidebar(); });
-
-function onSiteChange(site){
-  toast('已切换站点：'+site);
-  // 占位：后续可在此切换不同网关/站点的配置上下文
-  cfg.site = site;
-}
 
 /* ---------- Load & Render ---------- */
 async function load(){
