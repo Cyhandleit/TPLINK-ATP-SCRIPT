@@ -94,6 +94,12 @@ body{
 .btn.danger:hover{background:#b91c1c}
 .btn.small{padding:5px 10px;font-size:0.78rem;border-radius:6px}
 .btn.icon{padding:7px}
+.btn.success{background:var(--success);color:#fff;border-color:var(--success)}
+.btn.success:hover{background:#166534}
+.btn.outline{background:#fff;color:var(--tp-blue);border-color:var(--tp-blue)}
+.btn.outline:hover{background:var(--tp-blue-light)}
+.btn.text{background:none;border:none;color:var(--tp-blue);padding:6px 10px;font-size:0.875rem;font-weight:500}
+.btn.text:hover{background:var(--tp-blue-light);border-radius:6px}
 .btn[disabled]{opacity:.6;cursor:not-allowed}
 
 /* ---------- Cards & layout ---------- */
@@ -320,6 +326,14 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
         <span class='busy-chip' id='busy-chip'><span class='busy-dot'></span>Running…</span>
         <button class='btn ghost' id='btn-refresh' onclick='refresh()'>刷新</button>
         <button class='btn primary' id='btn-save' onclick='saveConfig()'>保存配置</button>
+        <div class='site-select' style='display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:8px;padding:4px 10px;background:#fff;'>
+          <span class='nav-icon' style='font-size:1rem'>🏢</span>
+          <select id='site-select' style='border:none;background:transparent;font-size:0.875rem;color:var(--text);outline:none;cursor:pointer'>
+            <option value='default'>Default Site · 默认站点</option>
+            <option value='lab'>Lab · 实验室环境</option>
+            <option value='prod'>Prod · 生产环境</option>
+          </select>
+        </div>
       </div>
     </header>
 
@@ -336,6 +350,44 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
           <div class='stat-card pass'><div class='stat-value' id='stat-pass'>-</div><div class='stat-label'>通过</div></div>
           <div class='stat-card fail'><div class='stat-value' id='stat-fail'>-</div><div class='stat-label'>失败</div></div>
           <div class='stat-card todo'><div class='stat-value' id='stat-todo'>-</div><div class='stat-label'>待执行 / 进行中</div></div>
+        </div>
+        <div class='grid grid-4' style='margin-top:16px'>
+          <div class='stat-card total'>
+            <div style='display:flex;align-items:center;justify-content:space-between'>
+              <div>
+                <div class='stat-label'>网关设备</div>
+                <div class='stat-value' id='stat-gateway'>1</div>
+              </div>
+              <span class='status PASS dot'>在线</span>
+            </div>
+          </div>
+          <div class='stat-card pass'>
+            <div style='display:flex;align-items:center;justify-content:space-between'>
+              <div>
+                <div class='stat-label'>在线 AP</div>
+                <div class='stat-value' id='stat-ap'>3</div>
+              </div>
+              <span class='status PASS dot'>3 在线</span>
+            </div>
+          </div>
+          <div class='stat-card fail'>
+            <div style='display:flex;align-items:center;justify-content:space-between'>
+              <div>
+                <div class='stat-label'>离线设备</div>
+                <div class='stat-value' id='stat-offline'>0</div>
+              </div>
+              <span class='status FAIL dot'>离线</span>
+            </div>
+          </div>
+          <div class='stat-card todo'>
+            <div style='display:flex;align-items:center;justify-content:space-between'>
+              <div>
+                <div class='stat-label'>待采集</div>
+                <div class='stat-value' id='stat-pending'>0</div>
+              </div>
+              <span class='status PENDING dot'>待处理</span>
+            </div>
+          </div>
         </div>
         <div class='grid grid-2'>
           <div class='card'>
@@ -748,11 +800,12 @@ async function runOne(cid){
   busy=true; poll();
 }
 async function saveConfig(){
-  await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
-  const b=document.createElement('span'); b.className='saved-badge'; b.textContent='已保存';
+  const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
+  const d=await r.json();
+  const b=document.createElement('span'); b.className='saved-badge'; b.textContent=d.ok?'已保存':'保存失败'; b.style.color=d.ok?'var(--success)':'var(--danger)';
   const btn=$('#btn-save'); btn.appendChild(b);
   setTimeout(()=>b.remove(),1500);
-  toast('配置已保存');
+  toast(d.ok?'配置已保存':(d.error||'保存失败'));
 }
 async function refresh(){load(); toast('已刷新');}
 function poll(){setTimeout(load,2000);}
