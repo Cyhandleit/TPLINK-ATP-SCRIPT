@@ -11,10 +11,12 @@ import sys
 import time
 import json
 import html
+import shlex
 import argparse
 import platform
 import threading
 import subprocess
+import urllib.request
 from datetime import datetime, timedelta
 from http.server import SimpleHTTPRequestHandler
 from socketserver import TCPServer
@@ -23,33 +25,42 @@ import requests
 from requests.adapters import HTTPAdapter
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
+
+def _env(key, default=None, required=False):
+    val = os.environ.get(key, default)
+    if required and not val:
+        raise RuntimeError(f"Missing required env var: {key}")
+    return val
+
+
 CONFIG = {
     "gateway_ip": "192.168.1.1",
-    "admin_user": "admin",
-    "admin_pass": "admin1234",
-    "superadmin_user": "superadmin",
-    "superadmin_pass": "superadmin1234",
+    "gateway_scheme": _env("ATP_GATEWAY_SCHEME", "http"),
+    "admin_user": _env("ATP_ADMIN_USER", "admin"),
+    "admin_pass": _env("ATP_ADMIN_PASS", "admin1234"),
+    "superadmin_user": _env("ATP_SUPERADMIN_USER", "superadmin"),
+    "superadmin_pass": _env("ATP_SUPERADMIN_PASS", "superadmin1234"),
     "expected_ssid_prefix": "TP_Link_",
-    "lan_iface": "Ethernet",
-    "wifi_iface": "Wi-Fi",
-    "ext_nic_ip": "192.168.43.100",
-    "wifi_24g": {"ssid": "TP_Link_Test_2G", "pass": "12345678"},
-    "wifi_5g":  {"ssid": "TP_Link_Test_5G", "pass": "12345678"},
-    "wifi_6g":  {"ssid": "TP_Link_Test_6G", "pass": "12345678"},
-    "wifi_guest": {"ssid": "TP_Link_Guest", "pass": "guest1234"},
-    "wifi_mlo": {"ssid": "TP_Link_MLO", "pass": "12345678"},
+    "lan_iface": _env("ATP_LAN_IFACE", "Ethernet"),
+    "wifi_iface": _env("ATP_WIFI_IFACE", "Wi-Fi"),
+    "ext_nic_ip": _env("ATP_EXT_NIC_IP", "192.168.43.100"),
+    "wifi_24g": {"ssid": _env("ATP_WIFI_24G_SSID", "TP_Link_Test_2G"), "pass": _env("ATP_WIFI_24G_PASS", "12345678")},
+    "wifi_5g":  {"ssid": _env("ATP_WIFI_5G_SSID", "TP_Link_Test_5G"),  "pass": _env("ATP_WIFI_5G_PASS",  "12345678")},
+    "wifi_6g":  {"ssid": _env("ATP_WIFI_6G_SSID", "TP_Link_Test_6G"),  "pass": _env("ATP_WIFI_6G_PASS",  "12345678")},
+    "wifi_guest": {"ssid": _env("ATP_WIFI_GUEST_SSID", "TP_Link_Guest"), "pass": _env("ATP_WIFI_GUEST_PASS", "guest1234")},
+    "wifi_mlo": {"ssid": _env("ATP_WIFI_MLO_SSID", "TP_Link_MLO"), "pass": _env("ATP_WIFI_MLO_PASS", "12345678")},
     "iperf3_server_ip": "192.168.1.100",
     "http_forward_port": 30000,
     "qos_upload_cap_mbps": 20,
-    "ddns_user": "your_noip_user",
-    "ddns_pass": "your_noip_key",
+    "ddns_user": _env("ATP_DDNS_USER", "your_noip_user"),
+    "ddns_pass": _env("ATP_DDNS_PASS", "your_noip_key"),
     "ddns_domain": "tplink-test.ddns.net",
     "firmware_bin_path": "./firmware_new.bin",
     "acs_api_url": "http://192.168.1.200:7557",
     "acs_device_id": "001122-EX820v-SN12345678",
     "tauc_url": "https://tauc.tp-link.com",
-    "tauc_user": "tauc_tester@example.com",
-    "tauc_pass": "TaucPass123!",
+    "tauc_user": _env("ATP_TAUC_USER", "tauc_tester@example.com"),
+    "tauc_pass": _env("ATP_TAUC_PASS", "TaucPass123!"),
     "device_sn": "2245123456789",
 }
 
@@ -113,7 +124,8 @@ class LocalHTTPServer:
             def log_message(self, format, *args):
                 pass
         TCPServer.allow_reuse_address = True
-        self.httpd = TCPServer(("0.0.0.0", self.port), Handler)
+        bind_host = CONFIG.get("ext_nic_ip") or "127.0.0.1"
+        self.httpd = TCPServer((bind_host, self.port), Handler)
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self.thread.start()
     def stop(self):
@@ -213,20 +225,22 @@ def connect_wifi(ssid, password):
         </WLANProfile>"""
         with open("wifi_profile.xml", "w", encoding="utf-8") as f:
             f.write(profile_xml)
-        run_cmd(f'netsh wlan add profile filename="wifi_profile.xml" interface="{CONFIG["wifi_iface"]}"', shell=True)
-        code, out = run_cmd(f'netsh wlan connect name="{ssid}" interface="{CONFIG["wifi_iface"]}"', shell=True)
+        iface = shlex.quote(CONFIG["wifi_iface"])
+        run_cmd(f'netsh wlan add profile filename="wifi_profile.xml" interface={iface}', shell=True)
+        code, out = run_cmd(f'netsh wlan connect name="{ssid}" interface={iface}', shell=True)
         time.sleep(8)
         return code == 0, out
     else:
-        code, out = run_cmd(f'nmcli device wifi connect "{ssid}" password "{password}" ifname "{CONFIG["wifi_iface"]}"', shell=True)
+        iface = shlex.quote(CONFIG["wifi_iface"])
+        code, out = run_cmd(f'nmcli device wifi connect "{ssid}" password "{password}" ifname {iface}', shell=True)
         time.sleep(8)
         return code == 0, out
 
 def run_ping_stats(target, count=10, ipv6=False):
     is_win = platform.system() == "Windows"
-    flag_v6 = "-6" if ipv6 else "-4"
-    flag_cnt = f"-n {count}" if is_win else f"-c {count}"
-    cmd = f"ping {flag_v6} {flag_cnt} {target}"
+    flag_v6 = ["-6"] if ipv6 else ["-4"]
+    flag_cnt = ["-n", str(count)] if is_win else ["-c", str(count)]
+    cmd = ["ping"] + flag_v6 + flag_cnt + [target]
     code, out = run_cmd(cmd, timeout=count * 2 + 15)
     loss_match = re.search(r"(\d+(?:\.\d+)?)%\s*(?:loss|packet loss|丢失)", out, re.IGNORECASE)
     loss_pct = float(loss_match.group(1)) if loss_match else 100.0
@@ -240,11 +254,15 @@ def run_ping_stats(target, count=10, ipv6=False):
 def wait_router_online(timeout=180):
     start = time.time()
     time.sleep(15)
+    scheme = CONFIG.get("gateway_scheme", "http")
     while time.time() - start < timeout:
         loss, _, _, _ = run_ping_stats(CONFIG["gateway_ip"], count=2)
         if loss == 0:
-            time.sleep(5)
-            return True
+            try:
+                urllib.request.urlopen(f"{scheme}://{CONFIG['gateway_ip']}", timeout=5)
+                return True
+            except Exception:
+                pass
         time.sleep(3)
     return False
 
@@ -252,7 +270,7 @@ class RouterWebController:
     def __init__(self, page, reporter):
         self.page = page
         self.rep = reporter
-        self.base_url = f"http://{CONFIG['gateway_ip']}"
+        self.base_url = f"{CONFIG['gateway_scheme']}://{CONFIG['gateway_ip']}"
     def login(self, role="superadmin", screenshot_name=None):
         user = CONFIG["superadmin_user"] if role == "superadmin" else CONFIG["admin_user"]
         pwd = CONFIG["superadmin_pass"] if role == "superadmin" else CONFIG["admin_pass"]
@@ -260,7 +278,7 @@ class RouterWebController:
         self.page.fill(UI_SELECTORS["login_user"], user)
         self.page.fill(UI_SELECTORS["login_pass"], pwd)
         self.page.click(UI_SELECTORS["login_btn"])
-        self.page.wait_for_timeout(3000)
+        self.page.wait_for_load_state("networkidle")
         if screenshot_name:
             self.page.screenshot(path=self.rep.img_path(screenshot_name))
     def get_public_ip(self):
@@ -277,7 +295,7 @@ def run_stage_1(ctrl, term_page, rep):
         ctrl.login("superadmin", "1.1_Superadmin_Login.png")
         ctrl.page.click(UI_SELECTORS["menu_basic"])
         ctrl.page.click(UI_SELECTORS["sidebar_wireless"])
-        ctrl.page.wait_for_timeout(1500)
+        ctrl.page.wait_for_load_state("networkidle")
         ctrl.page.screenshot(path=rep.img_path("1.1_WiFi_SSID_Default.png"))
         body_text = ctrl.page.inner_text("body")
         has_ssid = CONFIG["expected_ssid_prefix"] in body_text
@@ -289,10 +307,10 @@ def run_stage_1(ctrl, term_page, rep):
         ctrl.page.click(UI_SELECTORS["menu_advanced"])
         ctrl.page.click(UI_SELECTORS["sidebar_network"])
         ctrl.page.click(UI_SELECTORS["sidebar_internet"])
-        ctrl.page.wait_for_timeout(1500)
+        ctrl.page.wait_for_load_state("networkidle")
         ctrl.page.screenshot(path=rep.img_path("2.1_WAN_Internet_Config.png"))
         ctrl.page.click(UI_SELECTORS["sidebar_status"])
-        ctrl.page.wait_for_timeout(1500)
+        ctrl.page.wait_for_load_state("networkidle")
         ctrl.page.screenshot(path=rep.img_path("2.1_WAN_Status.png"))
         status_txt = ctrl.page.inner_text("body")
         ok = ("PPPoE" in status_txt) and ("IPv6" in status_txt)
@@ -305,7 +323,7 @@ def run_stage_1(ctrl, term_page, rep):
     for idx, target in enumerate([CONFIG["gateway_ip"], "8.8.8.8", "www.google.com"], 1):
         loss, avg, cmd, out = run_ping_stats(target, count=4)
         fn = f"2.3_Ping_{idx}_{target}.png"
-        rep.render_terminal_screenshot(term_page, cmd, out, fn)
+        rep.render_terminal_screenshot(term_page, " ".join(cmd) if isinstance(cmd, list) else cmd, out, fn)
         imgs_23.append(fn)
         if loss > 0:
             all_ok = False
@@ -315,16 +333,16 @@ def run_stage_1(ctrl, term_page, rep):
         ctrl.page.click(UI_SELECTORS["menu_advanced"])
         ctrl.page.click(UI_SELECTORS["sidebar_sys_tools"])
         ctrl.page.click(UI_SELECTORS["sidebar_diagnostics"])
-        ctrl.page.wait_for_timeout(1500)
+        ctrl.page.wait_for_load_state("networkidle")
         ctrl.page.screenshot(path=rep.img_path("2.4_GUI_Diagnostics.png"))
         rep.record("2.4", "WAN Diagnostics (GUI)", "PASS", "已进入系统诊断工具界面", ["2.4_GUI_Diagnostics.png"])
     except Exception as e:
         rep.record("2.4", "WAN Diagnostics (GUI)", "FAIL", str(e))
     loss6, avg6, cmd6, out6 = run_ping_stats("www.google.com", count=4, ipv6=True)
-    rep.render_terminal_screenshot(term_page, cmd6, out6, "4.8_Ping6_Google.png")
+    rep.render_terminal_screenshot(term_page, " ".join(cmd6) if isinstance(cmd6, list) else cmd6, out6, "4.8_Ping6_Google.png")
     try:
         term_page.goto("https://test-ipv6.com/", timeout=30000)
-        term_page.wait_for_timeout(12000)
+        term_page.wait_for_load_state("networkidle")
         term_page.screenshot(path=rep.img_path("4.8_Test_IPv6_Score.png"), full_page=True)
         score_ok = "10/10" in term_page.inner_text("body")
         rep.record("4.8", "IPv6 Connectivity", "PASS" if (loss6 == 0 and score_ok) else "FAIL",
@@ -355,14 +373,14 @@ def run_stage_2(term_page, rep):
         rep.record(cid, title, "PASS" if c_s == 0 else "FAIL", o_s.replace("\n", " | "), [img_fn])
     try:
         term_page.goto("https://whatismyipaddress.com/", wait_until="domcontentloaded", timeout=25000)
-        term_page.wait_for_timeout(3000)
+        term_page.wait_for_load_state("networkidle")
         term_page.screenshot(path=rep.img_path("3.5_Web_Browsing.png"))
         rep.record("3.5", "Web Browsing", "PASS", "成功加载 whatismyipaddress.com", ["3.5_Web_Browsing.png"])
     except Exception as e:
         rep.record("3.5", "Web Browsing", "FAIL", str(e))
     try:
         term_page.goto("https://www.youtube.com/watch?v=LXb3EKWsInQ", timeout=30000)
-        term_page.wait_for_timeout(5000)
+        term_page.wait_for_load_state("networkidle")
         quality_info = term_page.evaluate("""() => {
             const v = document.querySelector('video');
             if (!v) return 'No video element';
@@ -406,7 +424,7 @@ def run_stage_3(ctrl, term_page, rep):
         ctrl.page.click(UI_SELECTORS["menu_advanced"])
         ctrl.page.click(UI_SELECTORS["sidebar_nat"])
         ctrl.page.click(UI_SELECTORS["sidebar_virtual_servers"])
-        ctrl.page.wait_for_timeout(1500)
+        ctrl.page.wait_for_load_state("networkidle")
         ctrl.page.screenshot(path=rep.img_path("4.1_Port_Forwarding_UI.png"))
         if pub_ip and CONFIG["ext_nic_ip"]:
             resp = ext_session.get(f"http://{pub_ip}:{CONFIG['http_forward_port']}", timeout=10)
@@ -430,7 +448,7 @@ def run_stage_3(ctrl, term_page, rep):
         try:
             ctrl.page.click(UI_SELECTORS["menu_advanced"])
             ctrl.page.click(UI_SELECTORS[sidebar])
-            ctrl.page.wait_for_timeout(1500)
+            ctrl.page.wait_for_load_state("networkidle")
             ctrl.page.screenshot(path=rep.img_path(img))
             rep.record(cid, title, "PASS", note, [img])
         except Exception as e:
@@ -507,7 +525,7 @@ def run_stage_5(ctrl, term_page, rep, ping_seconds=3600, skip_destructive=False)
     for tgt in targets:
         loss, avg_ms, cmd, out = run_ping_stats(tgt, count=ping_seconds)
         fn = f"2.5_LongPing_{tgt.replace('.', '_')}.png"
-        rep.render_terminal_screenshot(term_page, f"{cmd} (Duration: {ping_seconds}s)", out, fn)
+        rep.render_terminal_screenshot(term_page, " ".join(cmd) if isinstance(cmd, list) else cmd, out, fn)
         imgs_ping.append(fn)
         passed = (loss == 0.0) and (avg_ms <= 30.0)
         if not passed:
@@ -530,7 +548,9 @@ def main():
     reporter = ATPReporter()
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=not args.headed)
-        context = browser.new_context(viewport={"width": 1366, "height": 850}, ignore_https_errors=True)
+        context = browser.new_context(viewport={"width": 1366, "height": 850}, ignore_https_errors=args.headed)
+        if args.headed:
+            print("[WARN] Headed mode: HTTPS certificate errors are ignored — do not use on production networks.")
         router_page = context.new_page()
         term_page = context.new_page()
         ctrl = RouterWebController(router_page, reporter)
