@@ -2,136 +2,430 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>TP-Link ATP Web UI</title>
+<title>TP-Link ATP 自动化测试平台</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:20px;background:#f5f7fa}
-h1{margin:0 0 12px}
-.card{background:#fff;border-radius:8px;padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
-.row{display:flex;gap:12px;flex-wrap:wrap}
-label{font-size:13px;color:#666;display:block;margin:6px 0 2px}
-input{padding:6px 8px;border:1px solid #ccc;border-radius:4px;width:220px}
-input[type=password]{width:220px}
-button{padding:8px 14px;border:none;border-radius:4px;cursor:pointer;font-size:13px}
-button.primary{background:#005a9e;color:#fff}
-button.danger{background:#dc3545;color:#fff}
-button.small{padding:4px 8px;font-size:12px}
-button:disabled{opacity:.6;cursor:not-allowed}
-table{width:100%;border-collapse:collapse;margin-top:8px}
-th,td{border:1px solid #ddd;padding:6px 8px;text-align:left;font-size:13px}
-th{background:#005a9e;color:#fff}
-td.status{width:110px}
-td.actions{width:140px}
-.pending{color:#999}.running{color:#e0a800}.pass{color:#28a745}.fail{color:#dc3545}.skip{color:#6c757d}
-img.preview{max-width:260px;max-height:150px;border:1px solid #ddd;margin-top:4px;display:block}
-.logs{background:#1e1e1e;color:#d4d4d4;padding:8px;border-radius:4px;font-family:Consolas,monospace;font-size:11px;max-height:200px;overflow:auto;white-space:pre-wrap}
-.section-title{font-weight:600;margin-top:16px;margin-bottom:8px;color:#005a9e}
-.config-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
-#toast{position:fixed;top:16px;right:16px;background:#333;color:#fff;padding:8px 12px;border-radius:4px;display:none;z-index:9999}
-.cfg-group{border:1px solid #e2e8f0;border-radius:6px;padding:12px;margin-bottom:12px;background:#fafafa}
-.cfg-group h3{margin:0 0 10px;font-size:14px;color:#005a9e}
+:root{
+  --brand:#005a9e;
+  --brand-hover:#004a82;
+  --bg:#f0f2f5;
+  --card:#ffffff;
+  --text:#1f2937;
+  --muted:#6b7280;
+  --border:#e5e7eb;
+  --success:#15803d;
+  --danger:#dc2626;
+  --warn:#ca8a04;
+  --shadow:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.06);
+  --radius:10px;
+  --transition:0.2s ease;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh;padding:16px}
+.container{max-width:1200px;margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+header h1{font-size:1.25rem;font-weight:700;color:var(--brand);letter-spacing:-0.01em}
+.subtitle{color:var(--muted);font-size:0.875rem;margin-top:4px}
+.header-actions{display:flex;gap:8px;align-items:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;border:1px solid transparent;border-radius:8px;font-size:0.875rem;font-weight:500;cursor:pointer;transition:all var(--transition);white-space:nowrap}
+.btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.primary:hover{background:var(--brand-hover);filter:brightness(1.05)}
+.btn.primary:disabled{opacity:0.6;cursor:not-allowed}
+.btn.ghost{background:#fff;color:var(--text);border-color:var(--border)}
+.btn.ghost:hover{background:#f3f4f6}
+.btn.danger{background:var(--danger);color:#fff;border-color:var(--danger)}
+.btn.danger:hover{background:#b91c1c}
+.btn.small{padding:5px 10px;font-size:0.78rem;border-radius:6px}
+.btn.icon{padding:7px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.card > header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.card-header{font-size:0.95rem;font-weight:700;color:var(--brand);display:flex;align-items:center;gap:8px}
+.card-body{padding:16px}
+.grid{display:grid;gap:16px}
+.grid-2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.grid-3{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:0.8rem;font-weight:600;color:var(--muted);margin-bottom:6px;letter-spacing:0.02em;text-transform:uppercase}
+.input-wrap{position:relative;display:flex;align-items:center}
+.input-wrap input{width:100%;padding:9px 36px 9px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text);font-size:0.875rem;transition:border-color var(--transition),box-shadow var(--transition)}
+.input-wrap input:focus{border-color:var(--brand);outline:none;box-shadow:0 0 0 3px rgba(0,90,158,0.1)}
+.input-wrap .toggle{position:absolute;right:10px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.85rem;padding:4px;border-radius:4px}
+.input-wrap .toggle:hover{color:var(--brand);background:#f3f4f6}
+.cfg-card{display:flex;flex-direction:column}
+.cfg-title{font-size:0.875rem;font-weight:700;color:var(--brand);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.cfg-items{display:flex;flex-direction:column;gap:10px}
+.cfg-item{display:flex;align-items:center;gap:10px}
+.cfg-item label{min-width:150px;font-size:0.875rem;color:var(--text)}
+.cfg-item input[type="text"],.cfg-item input[type="password"]{flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:#fff}
+.cfg-item input[type="checkbox"]{width:16px;height:16px;accent-color:var(--brand)}
+.cfg-item .pwd-toggle{margin-left:8px;background:none;border:none;color:var(--muted);cursor:pointer;padding:4px}
+.cfg-item .pwd-toggle:hover{color:var(--brand)}
+.group-badge{font-size:0.7rem;padding:2px 8px;border-radius:10px;background:#eef4fb;color:var(--brand);font-weight:700;margin-left:auto}
+
+.saved-badge{font-size:0.72rem;color:var(--success);margin-left:8px;animation:fadeIn 0.3s}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+.runbar{margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.runbar .primary{min-width:110px}
+.stage-pills{display:flex;gap:6px;flex-wrap:wrap}
+.stage-pills .btn{flex:1;min-width:56px;justify-content:center}
+.busy{color:var(--danger);font-weight:700;font-size:0.85rem;white-space:nowrap}
+
+.cases-table{width:100%;border-collapse:collapse;font-size:0.85rem;margin-top:8px}
+.cases-table th{background:#f8fafc;color:var(--muted);font-weight:600;text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.03em}
+.cases-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.cases-table tr:last-child td{border-bottom:none}
+.cases-table tr:hover{background:#fafafa}
+.case-id{font-weight:700;color:var(--brand);font-size:0.8rem}
+.case-title{color:var(--text)}
+.case-stage{font-size:0.75rem;color:var(--mixed,#6b7280)}
+.status{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:12px;font-size:0.75rem;font-weight:700;white-space:nowrap}
+.status.dot::before{content:"";display:block;width:7px;height:7px;border-radius:50%}
+.status.PASS{background:#ecfdf5;color:var(--success)}
+.status.PASS.dot::before{background:var(--success)}
+.status.FAIL{background:#fef2f2;color:var(--danger)}
+.status.FAIL.dot::before{background:var(--danger)}
+.status.PENDING{background:#f3f4f6;color:var(--muted)}
+.status.PENDING.dot::before{background:#d1d5db}
+.status.RUNNING{background:#fefbeb;color:var(--warn)}
+.status.RUNNING.dot::before{background:var(--warn);animation:pulse 1.5s infinite}
+.status.SKIP{background:#f3f4f6;color:var(--muted)}
+.status.SKIP.dot::before{background:#d1d5db}
+@keyframes pulse{0%{opacity:1}50%{opacity:0.4}100%{opacity:1}}
+.detail{font-size:0.78rem;color:var(--muted);max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.time{font-size:0.75rem;color:var(--muted);white-space:nowrap}
+.screens{display:flex;gap:6px;flex-wrap:wrap}
+.screens a{display:block;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:#000}
+.screens img{display:block;width:72px;height:52px;object-fit:cover}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+
+.progress-wrap{margin:10px 0 0}
+.progress{height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;width:100%;margin-top:6px}
+.progress-bar{height:100%;background:var(--brand);width:0%;transition:width 0.3s}
+.progress-text{font-size:0.78rem;color:var(--muted);text-align:right;margin-top:3px}
+
+.gallery-modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,0.85);display:none;align-items:center;justify-content:center;padding:24px}
+.gallery-modal.open{display:flex}
+.gallery-content{background:#fff;border-radius:12px;max-width:90vw;max-height:90vh;width:720px;overflow:hidden;display:flex;flex-direction:column}
+.gallery-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.gallery-title{font-weight:700;color:var(--brand)}
+.gallery-close{background:none;border:none;font-size:1.5rem;color:var(--muted);cursor:pointer;line-height:1}
+.gallery-body{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:16px}
+.gallery-item{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#000;display:flex;flex-direction:column}
+.gallery-item img{display:block;width:100%;height:auto;max-height:60vh;object-fit:contain}
+.gallery-caption{padding:10px 14px;font-size:0.85rem;color:var(--muted);background:#f8fafc;border-top:1px solid var(--border)}
+.gallery-empty{padding:40px;color:var(--muted);text-align:center}
+
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 16px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-size:0.875rem;z-index:100;opacity:0;pointer-events:none;transition:opacity 0.2s,transform 0.2s;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+.empty-state{text-align:center;padding:40px;color:var(--muted)}
+.empty-state p{margin-top:8px}
+
+.logs{background:#111827;color:#d1d5db;padding:12px;border-radius:8px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:0.75rem;max-height:220px;overflow:auto;white-space:pre-wrap;margin-top:8px}
+
+@media (max-width:768px){
+  body{padding:10px}
+  header{flex-direction:column;align-items:flex-start}
+  .header-actions{width:100%;justify-content:flex-end;margin-top:8px}
+  .cases-table{font-size:0.75rem}
+  .cases-table th,.cases-table td{padding:8px}
+  .detail{display:none}
+  .cfg-item{flex-direction:column;align-items:flex-start}
+  .cfg-item label{min-width:unset;width:100%}
+  .cfg-item .pwd-toggle{margin-left:0;margin-top:4px}
+  .gallery-content{width:95vw;margin:0 4px}
+}
 </style>
 </head>
 <body>
-<h1>TP-Link ATP 自动化测试 UI</h1>
+<div class="container">
+  <header>
+    <div>
+      <h1>⚡ TP-Link ATP 自动化测试平台</h1>
+      <div class="subtitle">Web 配置 • 用例看板 • 运行进度 • 报告画廊</div>
+    </div>
+    <div class="header-actions">
+      <span id="busy" class="busy">执行中…</span>
+      <button class="btn ghost small" onclick="refresh()">刷新</button>
+      <button class="btn primary" onclick="saveConfig()">保存配置</button>
+    </div>
+  </header>
 
-<div class="card">
-  <h2 style="margin:0 0 12px">⚙️ 测试配置</h2>
-  <div class="cfg-group">
-    <h3>🌐 网关设置</h3>
-    <div class="config-grid" id="cfg-gateway"></div>
+  <!-- 配置卡片 -->
+  <div class="card">
+    <div class="card-header">⚙️ 测试配置</div>
+    <div class="card-body">
+      <div class="grid grid-2">
+        <div class="cfg-card">
+          <div class="cfg-title">🌐 网关设置 <span class="group-badge">gateway</span></div>
+          <div class="cfg-items" id="cfg-gateway"></div>
+        </div>
+        <div class="cfg-card">
+          <div class="cfg-title">🔑 登录凭证 <span class="group-badge">credentials</span></div>
+          <div class="cfg-items" id="cfg-credentials"></div>
+        </div>
+        <div class="cfg-card">
+          <div class="cfg-title">📶 WiFi 设置 <span class="group-badge">wifi</span></div>
+          <div class="cfg-items" id="cfg-wifi"></div>
+        </div>
+        <div class="cfg-card">
+          <div class="cfg-title">🧪 测试行为 <span class="group-badge">behavior</span></div>
+          <div class="cfg-items" id="cfg-behavior"></div>
+        </div>
+      </div>
+      <div class="runbar">
+        <button class="btn primary" onclick="runStage('all')">运行全部</button>
+        <div class="stage-pills">
+          <button class="btn ghost" onclick="runStage('1')">Stage 1</button>
+          <button class="btn ghost" onclick="runStage('2')">Stage 2</button>
+          <button class="btn ghost" onclick="runStage('3')">Stage 3</button>
+          <button class="btn ghost" onclick="runStage('4')">Stage 4</button>
+          <button class="btn ghost" onclick="runStage('5')">Stage 5</button>
+        </div>
+        <button class="btn ghost small" onclick="refresh()">刷新状态</button>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress"><div id="progress-bar" class="progress-bar"></div></div>
+        <div class="progress-text" id="progress-text">就绪</div>
+      </div>
+    </div>
   </div>
-  <div class="cfg-group">
-    <h3>🔑 登录凭证</h3>
-    <div class="config-grid" id="cfg-credentials"></div>
+
+  <!-- 用例看板 -->
+  <div class="card">
+    <div class="card-header">📋 测试用例看板</div>
+    <div class="card-body">
+      <table class="cases-table">
+        <thead>
+          <tr>
+            <th style="width:70px">用例</th>
+            <th>标题</th>
+            <th style="width:70px">阶段</th>
+            <th style="width:110px">状态</th>
+            <th style="width:260px">详情</th>
+            <th style="width:110px">耗时</th>
+            <th style="width:110px">截图</th>
+            <th style="width:150px">操作</th>
+          </tr>
+        </thead>
+        <tbody id="tbl-body"></tbody>
+      </table>
+    </div>
   </div>
-  <div class="cfg-group">
-    <h3>📶 WiFi 设置</h3>
-    <div class="config-grid" id="cfg-wifi"></div>
+
+  <!-- 报告画廊（模态） -->
+  <div class="gallery-modal" id="gallery-modal">
+    <div class="gallery-content">
+      <div class="gallery-header">
+        <div class="gallery-title">📷 截图画廊</div>
+        <button class="gallery-close" onclick="closeGallery()">&times;</button>
+      </div>
+      <div class="gallery-body" id="gallery-body"></div>
+    </div>
   </div>
-  <div class="cfg-group">
-    <h3>🧪 测试行为</h3>
-    <div class="config-grid" id="cfg-behavior"></div>
-  </div>
-  <div style="margin-top:12px">
-    <button class="primary" onclick="saveConfig()">保存配置</button>
-    <button onclick="location.reload()">重置</button>
-  </div>
+
+  <div id="toast" class="toast"></div>
 </div>
-
-<div class="card">
-  <h2 style="margin:0 0 12px">📋 测试用例看板</h2>
-  <div class="row" style="margin-bottom:8px">
-    <button class="primary" onclick="runStage('all')">运行全部</button>
-    <button onclick="runStage('1')">Stage 1</button>
-    <button onclick="runStage('2')">Stage 2</button>
-    <button onclick="runStage('3')">Stage 3</button>
-    <button onclick="runStage('4')">Stage 4</button>
-    <button onclick="runStage('5')">Stage 5</button>
-    <button class="danger" onclick="refresh()">刷新状态</button>
-    <span id="busy" style="color:#dc3545;font-weight:bold;display:none">执行中…</span>
-  </div>
-  <table id="tbl"><thead><tr><th>用例</th><th>标题</th><th>阶段</th><th>状态</th><th>详情</th><th>时间</th><th>截图</th><th>操作</th></tr></thead><tbody></tbody></table>
-</div>
-
-<div id="toast"></div>
 
 <script>
-let cfg = {};
+/* ---------- 用例本地元数据（与 atp_web.py CASES 对齐） ---------- */
+const CASE_META = {
+  "1.1":  {title:"Login Test (admin/superadmin)", stage:"1"},
+  "2.1":  {title:"WAN Connectivity (PPPoE & IPv6)", stage:"1"},
+  "2.3":  {title:"Internet Connectivity Test", stage:"1"},
+  "2.4":  {title:"WAN Diagnostics (GUI)", stage:"1"},
+  "4.8":  {title:"IPv6 Connectivity", stage:"1"},
+  "3.1":  {title:"LAN Speed Test", stage:"2"},
+  "3.2":  {title:"Wi-Fi 2.4GHz Speedtest", stage:"2"},
+  "3.3":  {title:"Wi-Fi 5GHz Speedtest", stage:"2"},
+  "3.4":  {title:"Wi-Fi 6GHz Speedtest", stage:"2"},
+  "3.5":  {title:"Web Browsing", stage:"2"},
+  "3.6":  {title:"Online Streaming (1080p/4K/8K)", stage:"2"},
+  "3.7":  {title:"P2P / Heavy Download", stage:"2"},
+  "4.1":  {title:"Port Forwarding (Port 30000)", stage:"3"},
+  "4.3":  {title:"Parental Control / Web Filtering", stage:"3"},
+  "4.4":  {title:"QoS (Quality of Service)", stage:"3"},
+  "4.5":  {title:"DDNS (No-IP)", stage:"3"},
+  "4.7":  {title:"Guest Network", stage:"3"},
+  "4.15": {title:"Multi-Link Operation (MLO)", stage:"3"},
+  "10.1": {title:"ACS Registration and Connection", stage:"4"},
+  "10.2": {title:"ACS Parameter GET/SET", stage:"4"},
+  "10.3": {title:"ACS Remote Reboot", stage:"4"},
+  "1.3":  {title:"Router Reboot (Web UI)", stage:"5"},
+  "6.1":  {title:"Firmware Upgrade via UI", stage:"5"},
+  "2.5/7.2":{title:"Long-Duration Ping Stability", stage:"5"}
+};
 const GROUP_KEYS = {
   'cfg-gateway': ['gateway_ip','gateway_scheme','lan_iface','wifi_iface','ext_nic_ip','iperf3_server_ip','http_forward_port','firmware_bin_path'],
   'cfg-credentials': ['admin_user','admin_pass','superadmin_user','superadmin_pass','tauc_user','tauc_pass'],
   'cfg-wifi': ['wifi_24g_ssid','wifi_24g_pass','wifi_5g_ssid','wifi_5g_pass','wifi_6g_ssid','wifi_6g_pass','wifi_guest_ssid','wifi_guest_pass','wifi_mlo_ssid','wifi_mlo_pass'],
-  'cfg-behavior': ['ping_seconds','run_destructive','headed','acs_api_url','acs_device_id','tauc_url','tauc_user'],
+  'cfg-behavior': ['ping_seconds','run_destructive','headed','acs_api_url','acs_device_id','tauc_url','tauc_user']
 };
-function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',3000)}
-async function load(){const r=await fetch('/api/state');const d=await r.json();render(d.cases, d.config)}
-function render(cases, config){
-  cfg=config||{};
-  Object.entries(GROUP_KEYS).forEach(([containerId, keys])=>{
+
+let cfg = {};
+let pollTimer = null;
+let busy = false;
+
+/* ---------- 工具 ---------- */
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+function esc(s){return String(s===''||s==null?'':s).replace(/[&<>"']/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c]))}
+
+/* ---------- 加载与渲染 ---------- */
+async function load(){
+  try{
+    const r=await fetch('/api/state');
+    const d=await r.json();
+    cfg=d.config||{};
+    render(d.cases||{});
+  }catch(e){
+    console.error('load failed',e);
+  }
+}
+function render(cases){
+  /* 配置项渲染 */
+  Object.entries(GROUP_KEYS).forEach(([containerId,keys])=>{
     const el=document.getElementById(containerId);
-    el.innerHTML = keys.map(k=>{
-      const v = cfg[k] !== undefined ? cfg[k] : '';
-      const isPassword = k.endsWith('_pass');
-      const isBool = typeof v === 'boolean';
-      const checked = isBool && v ? 'checked' : '';
-      const inputType = isPassword ? 'password' : (isBool ? 'checkbox' : 'text');
-      return `<div><label>${k}</label><input type="${inputType}" ${isBool?checked:(`value="${v}"`)} onchange="cfg['${k}']=this.checked!==undefined?this.checked:this.value" ${isPassword?'autocomplete="new-password"':''} /></div>`;
+    if(!el) return;
+    el.innerHTML=keys.map(k=>{
+      const v=cfg[k]!==undefined?cfg[k]:'';
+      const isPassword=k.endsWith('_pass');
+      const isBool=typeof v==='boolean';
+      const checked=isBool&&v?'checked':'';
+      const inputType=isPassword?'password':(isBool?'checkbox':'text');
+      const masked=isPassword&&v&&v!=='***'?'*'.repeat(Math.min(v.length,8)):v;
+      const inputHtml=isBool
+        ?`<input type="checkbox" ${checked} onchange="cfg['${k}']=this.checked" />`
+        :`<input type="${inputType}" value="${esc(masked)}" onchange="cfg['${k}']=this.value" ${isPassword?'autocomplete="new-password"':''} />`;
+      const toggle=isPassword
+        ?`<button class="pwd-toggle" type="button" onclick="togglePwd(this,'${k}')" title="显示/隐藏">👁</button>`:'';
+      return `<div class="cfg-item"><label>${esc(k)}</label>${inputHtml}${toggle}</div>`;
     }).join('');
   });
-  const tbody=document.getElementById('tbl').querySelector('tbody');
+
+  /* 用例表格 */
+  const tbody=document.getElementById('tbl-body');
   tbody.innerHTML='';
-  for(const [cid,title,stage] of Object.entries(cases)){
-    const c=cases[cid];
-    const cls=c.status.toLowerCase();
-    let imgHtml='';
+  const ids=Object.keys(cases).sort((a,b)=>{
+    const ma=CASE_META[a]||{}, mb=CASE_META[b]||{};
+    return (ma.stage||0)-(mb.stage||0) || a.localeCompare(b);
+  });
+  let running=0,total=ids.length;
+  for(const cid of ids){
+    const c=cases[cid]||{};
+    const meta=CASE_META[cid]||{title:cid,stage:''};
+    const status=(c.status||'PENDING').toUpperCase();
+    const cls=status.toLowerCase();
+    if(status==='RUNNING') running++;
+    const start=c.start||'', end=c.end||'';
+    const timeHtml = start||end ? `${start}${end?' - '+end:''}`:'';
+    let imgs='';
     for(const s of (c.screenshots||[])){
-      imgHtml+=`<a href="${encodeURI(s)}" target="_blank"><img class="preview" src="${encodeURI(s)}"></a>`;
+      imgs+=`<a href="${esc(s)}" target="_blank" rel="noopener"><img src="${esc(s)}" onerror="this.style.display='none'" alt=""></a>`;
     }
-    let action=`<button class="small primary" onclick="runOne('${cid}')">运行</button>`;
-    if(c.status==='FAIL') action+=` <button class="small danger" onclick="runOne('${cid}')">重试</button>`;
-    else if(c.status==='PENDING' || !c.status) action+=` <button class="small" onclick="runOne('${cid}')">运行</button>`;
-    else if(c.status==='RUNNING') action+=`<span class="pending">进行中</span>`;
-    tbody.innerHTML+=`<tr><td><b>${cid}</b></td><td>${title}</td><td>Stage ${stage}</td>
-      <td class="status ${cls}">${c.status}</td><td>${c.detail||''}</td><td>${c.start||''}-${c.end||''}</td>
-      <td>${imgHtml}</td><td class="actions">${action}</td></tr>`;
+    const galleryBtn = imgs?`<button class="btn icon small" onclick="openGallery('${esc(cid)}', [${(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')}])" title="查看截图">🖼</button>`:'';
+    let action='';
+    if(status==='FAIL'){
+      action+=`<button class="btn small danger" onclick="runOne('${esc(cid)}')">重试</button>`;
+    }else if(status==='PENDING'||!status){
+      action+=`<button class="btn small ghost" onclick="runOne('${esc(cid)}')">运行</button>`;
+    }else if(status==='RUNNING'){
+      action+=`<span class="status RUNNING dot">进行中</span>`;
+    }else if(status==='PASS'){
+      action+=`<button class="btn small ghost" onclick="runOne('${esc(cid)}')">再跑</button>`;
+    }else if(status==='SKIP'){
+      action+=`<span class="status SKIP dot">跳过</span>`;
+    }
+    action+=galleryBtn;
+    tbody.innerHTML+=`<tr>
+      <td><span class="case-id">${esc(cid)}</span></td>
+      <td><span class="case-title">${esc(meta.title)}</span></td>
+      <td><span class="case-stage">Stage ${esc(meta.stage)}</span></td>
+      <td><span class="status ${cls} dot">${statusMap(status)}</span></td>
+      <td><span class="detail" title="${esc(c.detail||'')}">${esc(c.detail||'')}</span></td>
+      <td class="time">${esc(timeHtml)}</td>
+      <td><div class="screens">${imgs}</div></td>
+      <td class="actions">${action}</td>
+    </tr>`;
   }
-  document.getElementById('busy').style.display = Object.values(cases).some(c=>c.status==='RUNNING')?'inline':'none';
+  document.getElementById('busy').style.display = busy?'inline':'none';
+  const pct = total?Math.round(((total-running)/total)*100):100;
+  document.getElementById('progress-bar').style.width=pct+'%';
+  document.getElementById('progress-text').textContent = running?`${running}个用例执行中`:`全部完成（${pct}%）`;
 }
+function statusMap(s){
+  const m={PASS:'通过',FAIL:'失败',PENDING:'待执行',RUNNING:'执行中',SKIP:'已跳过'};
+  return m[s]||s;
+}
+
+/* ---------- 操作 ---------- */
 async function runStage(stage){
-  await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stage})});
-  toast('已提交：'+stage); poll();
+  if(busy){toast('已有测试在执行，请稍后');return;}
+  const r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stage,config:cfg})});
+  const d=await r.json();
+  if(!d.ok){toast(d.error||'提交失败');return;}
+  toast('已提交：Stage '+stage);
+  busy=true; poll();
 }
 async function runOne(cid){
-  await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({case:cid})});
-  toast('运行 '+cid); poll();
+  if(busy){toast('已有测试在执行，请稍后');return;}
+  const r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({case:cid,config:cfg})});
+  const d=await r.json();
+  if(!d.ok){toast(d.error||'提交失败');return;}
+  toast('运行 '+cid);
+  busy=true; poll();
 }
 async function saveConfig(){
   await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
+  const b=document.createElement('span'); b.className='saved-badge'; b.textContent='已保存';
+  const btn=document.querySelector('button[onclick="saveConfig()"]');
+  btn.appendChild(b);
+  setTimeout(()=>b.remove(),1500);
   toast('配置已保存');
 }
-async function refresh(){load()}
-function poll(){setTimeout(load,2000)}
-load();setInterval(poll,3000);
+async function refresh(){load();toast('已刷新');}
+function poll(){setTimeout(load,2000);}
+
+/* ---------- 密码显隐 ---------- */
+function togglePwd(btn,key){
+  const input=btn.parentElement.querySelector('input');
+  if(input.type==='password'){
+    input.type='text'; btn.textContent='🙈';
+  }else{
+    input.type='password'; btn.textContent='👁';
+  }
+  cfg[key]=input.value;
+}
+
+/* ---------- 画廊 ---------- */
+function openGallery(cid, imgs){
+  const modal=document.getElementById('gallery-modal');
+  const body=document.getElementById('gallery-body');
+  const meta=CASE_META[cid]||{title:cid};
+  body.innerHTML=imgs.length? imgs.map((s,i)=>`
+    <div class="gallery-item">
+      <img src="${esc(s)}" onerror="this.parentElement.innerHTML='<div style=padding:40px;color:#666>图片加载失败</div>'" alt="截图 ${i+1}">
+      <div class="gallery-caption">${cid} • ${meta.title} • 截图 ${i+1}/${imgs.length}</div>
+    </div>
+  `).join(''):`<div class="gallery-empty">暂无截图</div>`;
+  modal.classList.add('open');
+}
+function closeGallery(){
+  document.getElementById('gallery-modal').classList.remove('open');
+}
+document.getElementById('gallery-modal').addEventListener('click',e=>{
+  if(e.target===document.getElementById('gallery-modal')) closeGallery();
+});
+
+/* ---------- 启动 ---------- */
+load();
+setInterval(poll,3000);
 </script>
 </body>
 </html>

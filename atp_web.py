@@ -482,6 +482,40 @@ def run_stage_async(stage):
     for cid in ids:
         run_case_async(cid)
 
+# ---------------- 输入验证 ----------------
+_IP_RE = re.compile(r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$")
+_IMG_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+
+def _valid_ipv4(value):
+    if not isinstance(value, str):
+        return False
+    m = _IP_RE.match(value.strip())
+    if not m:
+        return False
+    return all(0 <= int(g) <= 255 for g in m.groups())
+
+
+def validate_config_override(overrides):
+    """校验 /api/run 透传的配置覆盖；返回错误信息列表，空列表表示通过。"""
+    errors = []
+    if not isinstance(overrides, dict):
+        return ["config 必须是 JSON 对象"]
+    ip = overrides.get("gateway_ip")
+    if ip is not None and not _valid_ipv4(ip):
+        errors.append("gateway_ip 格式不正确（需为 IPv4，如 192.168.1.1）")
+    for user_key, pass_key in (("admin_user", "admin_pass"),
+                               ("superadmin_user", "superadmin_pass")):
+        if overrides.get(user_key) and not overrides.get(pass_key):
+            errors.append(f"{user_key} 已填写，{pass_key} 为必填项")
+    return errors
+
+
+def _report_file_url(d, fn):
+    rel = os.path.relpath(os.path.join(d, fn), BASE).replace(os.sep, "/")
+    return "/screenshot/" + rel
+
+
 # ---------------- 路由 ----------------
 
 @app.route("/")
@@ -493,10 +527,15 @@ def index():
 def api_state():
     with state_lock:
         cases = {cid: dict(s) for cid, s in state.items()}
+        terminal = {"PASS", "FAIL", "SKIP"}
+        done = sum(1 for s in state.values() if s.get("status") in terminal)
     # 把绝对路径截图变成可通过 /screenshot 访问的相对路径
     for cid, c in cases.items():
         c["screenshots"] = ["/screenshot/" + os.path.relpath(p, BASE) if os.path.isabs(p) else p for p in c.get("screenshots", [])]
-    return jsonify({"cases": cases, "config": sanitize_config(CONFIG)})
+    total = len(CASES)
+    percent = round(done / total * 100) if total else 0
+    return jsonify({"cases": cases, "config": sanitize_config(CONFIG),
+                    "progress": {"done": done, "total": total, "percent": percent}})
 
 @app.route("/api/config", methods=["GET", "POST"])
 def api_config():
@@ -514,13 +553,23 @@ def api_run():
     stage = data.get("stage")
     case = data.get("case")
     overrides = data.get("config") or {}
+
+    errors = validate_config_override(overrides)
+    if errors:
+        return jsonify({"ok": False, "error": "参数校验失败", "details": errors}), 400
+
     if not exec_lock.acquire(blocking=False):
         return jsonify({"ok": False, "error": "有测试正在执行，请稍后再试"}), 409
+
     def job():
         try:
-            # 临时应用前端传入的配置覆盖（网关 IP、登录凭证等），执行完恢复
-            old = {k: CONFIG[k] for k in overrides if k in CONFIG}
+            # 前端传入的配置覆盖持久化到 config.json，并作用于当前运行时；
+            # 执行完不再恢复，下次启动/下次测试直接使用持久化后的配置。
             CONFIG.update(overrides)
+            try:
+                save_config(CONFIG)
+            except Exception as e:  # 持久化失败不阻止本次运行，仅在内存中生效
+                print(f"[api/run] 保存 config.json 失败: {e}")
             try:
                 if case:
                     run_case_async(case)
@@ -530,13 +579,10 @@ def api_run():
                 else:
                     run_stage_async(stage)
             finally:
-                for k in overrides:
-                    if k in old:
-                        CONFIG[k] = old[k]
-                    else:
-                        CONFIG.pop(k, None)
+                pass  # 配置已持久化，保留供后续测试使用
         finally:
             exec_lock.release()
+
     threading.Thread(target=job, daemon=True).start()
     return jsonify({"ok": True})
 
@@ -547,6 +593,45 @@ def screenshot(fpath):
         return "not found", 404
     d, fn = os.path.split(full)
     return send_from_directory(d, fn)
+
+
+@app.route("/api/reports")
+def api_reports():
+    """列出 reports/ 下的报告目录，带 summary_report.html 和截图的可访问 URL。"""
+    reports = []
+    if os.path.isdir(REPORT_ROOT):
+        entries = []
+        for name in os.listdir(REPORT_ROOT):
+            d = os.path.join(REPORT_ROOT, name)
+            if not os.path.isdir(d):
+                continue
+            try:
+                mtime = os.path.getmtime(d)
+            except OSError:
+                continue
+            entries.append((mtime, name, d))
+        entries.sort(key=lambda e: e[0], reverse=True)
+        for _, name, d in entries:
+            screenshots = []
+            summary = None
+            try:
+                files = os.listdir(d)
+            except OSError:
+                files = []
+            for fn in files:
+                url = _report_file_url(d, fn)
+                if fn == "summary_report.html":
+                    summary = url
+                elif os.path.splitext(fn)[1].lower() in _IMG_EXT:
+                    screenshots.append(url)
+            reports.append({
+                "name": name,
+                "path": os.path.join("reports", name).replace(os.sep, "/"),
+                "summary": summary,
+                "screenshots": screenshots,
+                "file_count": len(files),
+            })
+    return jsonify({"ok": True, "reports": reports})
 
 if __name__ == "__main__":
     os.makedirs(REPORT_ROOT, exist_ok=True)

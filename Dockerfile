@@ -11,6 +11,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
     playwright install chromium && \
     playwright install-deps chromium
 
+# curl：供 HEALTHCHECK（http://127.0.0.1:5000/）与容器内排障使用，仅装单一包，保持轻量
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
 # 应用代码
 COPY atp_engine.py atp_web.py known_issues.md ./
 
