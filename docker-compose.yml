@@ -32,8 +32,11 @@ services:
     volumes:
       # Test reports and screenshots persisted to host
       - ./reports:/app/reports
-      # Optional: mount custom config.json to override default config (ro to avoid container writing back to host)
-      - ./config.json:/app/config.json:ro
+      # config.json is handled by entrypoint.sh: copied from config.json.example if missing,
+      # and writable inside container so save_config() can persist user input.
+      # Do NOT mount host config.json here: if host file is missing, Docker creates a
+      # directory at the mount point causing IsADirectoryError; if mounted ro, save_config
+      # cannot write. Use docker cp or bind-mount a single file manually if needed.
     # Flask listens on 0.0.0.0:5000; under network_mode: host host connects directly, no ports mapping needed
     # (network_mode: host and ports cannot coexist)
     healthcheck:
