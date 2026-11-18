@@ -318,7 +318,7 @@ def wait_router_online(timeout=180):
         loss, _, _, _ = run_ping_stats(CONFIG["gateway_ip"], count=2)
         if loss == 0:
             try:
-                urllib.request.urlopen(f"{scheme}://{CONFIG['gateway_ip']}", timeout=5)
+                urllib.request.urlopen(f"{scheme}://{CONFIG['gateway_ip']}", timeout=5)  # nosec B310
                 return True
             except Exception:
                 pass

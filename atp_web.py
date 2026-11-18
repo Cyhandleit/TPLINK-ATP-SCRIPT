@@ -91,7 +91,7 @@ def wait_router_online(timeout=180):
         loss, _, _, _ = run_ping_stats(CONFIG["gateway_ip"], count=2)
         if loss == 0:
             try:
-                urllib.request.urlopen(f"{scheme}://{CONFIG['gateway_ip']}", timeout=5)
+                urllib.request.urlopen(f"{scheme}://{CONFIG['gateway_ip']}", timeout=5)  # nosec B310
                 return True
             except Exception:
                 pass
@@ -684,4 +684,4 @@ def api_reports():
 
 if __name__ == "__main__":
     os.makedirs(REPORT_ROOT, exist_ok=True)
-    app.run(host="0.0.0.0", port=5000, debug=os.environ.get("ATP_DEBUG", "0") == "1")
+    app.run(host="0.0.0.0", port=5000, debug=os.environ.get("ATP_DEBUG", "0") == "1")  # nosec B104
