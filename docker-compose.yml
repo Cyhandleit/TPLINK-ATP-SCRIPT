@@ -1,0 +1,63 @@
+# TP-Link ATP — docker-compose
+#
+# 两个服务：
+#   atp-web      : Flask Web UI（配置、看板、逐用例运行），宿主机直连 http://localhost:5000
+#   atp-engine   : CLI 测试执行引擎，按需运行，例如 `docker compose run --rm atp-engine python atp_engine.py --stage all`
+#
+# 重要：容器内 Playwright 需控制浏览器访问局域网路由器（默认 192.168.1.1）。
+# 本文件默认使用 network_mode: host，适合 Linux 宿主机，可直达局域网设备。
+# macOS / Windows 上 bridge 网络下容器默认不可直达物理局域网，请改用 bridge 并确保
+# 路由器 IP 可达（或 pre-build 浏览器后经 host.docker.internal 路由）。
+
+services:
+  atp-web:
+    build: .
+    container_name: atp-web
+    network_mode: host
+    environment:
+      - ATP_GATEWAY_IP=${ATP_GATEWAY_IP:-192.168.1.1}
+      - ATP_GATEWAY_SCHEME=${ATP_GATEWAY_SCHEME:-http}
+      - ATP_ADMIN_USER=${ATP_ADMIN_USER:-admin}
+      - ATP_ADMIN_PASS=${ATP_ADMIN_PASS}
+      - ATP_SUPERADMIN_USER=${ATP_SUPERADMIN_USER:-superadmin}
+      - ATP_SUPERADMIN_PASS=${ATP_SUPERADMIN_PASS}
+      - ATP_LAN_IFACE=${ATP_LAN_IFACE:-eth0}
+      - ATP_WIFI_IFACE=${ATP_WIFI_IFACE:-wlan0}
+      - ATP_EXT_NIC_IP=${ATP_EXT_NIC_IP}
+      - ATP_PING_SECONDS=${ATP_PING_SECONDS:-300}
+      - ATP_RUN_DESTRUCTIVE=${ATP_RUN_DESTRUCTIVE:-false}
+      - ATP_HEADED=${ATP_HEADED:-false}
+      - ATP_DEBUG=${ATP_DEBUG:-0}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # 测试报告与截图持久化到宿主机
+      - ./reports:/app/reports
+      # 可选：挂载自定义 config.json 覆盖默认配置（ro 避免容器内写回宿主机）
+      - ./config.json:/app/config.json:ro
+    # Flask 监听 0.0.0.0:5000；network_mode: host 下宿主机直连，无需 ports 映射
+    # (network_mode: host 与 ports 不可共存)
+
+  atp-engine:
+    build: .
+    container_name: atp-engine
+    network_mode: host
+    environment:
+      - ATP_GATEWAY_IP=${ATP_GATEWAY_IP:-192.168.1.1}
+      - ATP_GATEWAY_SCHEME=${ATP_GATEWAY_SCHEME:-http}
+      - ATP_ADMIN_USER=${ATP_ADMIN_USER:-admin}
+      - ATP_ADMIN_PASS=${ATP_ADMIN_PASS}
+      - ATP_SUPERADMIN_USER=${ATP_SUPERADMIN_USER:-superadmin}
+      - ATP_SUPERADMIN_PASS=${ATP_SUPERADMIN_PASS}
+      - ATP_LAN_IFACE=${ATP_LAN_IFACE:-eth0}
+      - ATP_WIFI_IFACE=${ATP_WIFI_IFACE:-wlan0}
+      - ATP_EXT_NIC_IP=${ATP_EXT_NIC_IP}
+      - ATP_PING_SECONDS=${ATP_PING_SECONDS:-300}
+      - ATP_RUN_DESTRUCTIVE=${ATP_RUN_DESTRUCTIVE:-false}
+      - ATP_HEADED=${ATP_HEADED:-false}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./reports:/app/reports
+    # 占位命令；实际运行请覆盖，例如：
+    #   docker compose run --rm atp-engine python atp_engine.py --stage all
+    #   docker compose run --rm atp-engine python atp_engine.py --stage 1 --headed
+    command: ["python", "atp_engine.py", "--help"]

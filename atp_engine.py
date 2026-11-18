@@ -37,18 +37,18 @@ CONFIG = {
     "gateway_ip": "192.168.1.1",
     "gateway_scheme": _env("ATP_GATEWAY_SCHEME", "http"),
     "admin_user": _env("ATP_ADMIN_USER", "admin"),
-    "admin_pass": _env("ATP_ADMIN_PASS", "admin1234"),
+    "admin_pass": _env("ATP_ADMIN_PASS", ""),
     "superadmin_user": _env("ATP_SUPERADMIN_USER", "superadmin"),
-    "superadmin_pass": _env("ATP_SUPERADMIN_PASS", "superadmin1234"),
+    "superadmin_pass": _env("ATP_SUPERADMIN_PASS", ""),
     "expected_ssid_prefix": "TP_Link_",
     "lan_iface": _env("ATP_LAN_IFACE", "Ethernet"),
     "wifi_iface": _env("ATP_WIFI_IFACE", "Wi-Fi"),
     "ext_nic_ip": _env("ATP_EXT_NIC_IP", "192.168.43.100"),
-    "wifi_24g": {"ssid": _env("ATP_WIFI_24G_SSID", "TP_Link_Test_2G"), "pass": _env("ATP_WIFI_24G_PASS", "12345678")},
-    "wifi_5g":  {"ssid": _env("ATP_WIFI_5G_SSID", "TP_Link_Test_5G"),  "pass": _env("ATP_WIFI_5G_PASS",  "12345678")},
-    "wifi_6g":  {"ssid": _env("ATP_WIFI_6G_SSID", "TP_Link_Test_6G"),  "pass": _env("ATP_WIFI_6G_PASS",  "12345678")},
-    "wifi_guest": {"ssid": _env("ATP_WIFI_GUEST_SSID", "TP_Link_Guest"), "pass": _env("ATP_WIFI_GUEST_PASS", "guest1234")},
-    "wifi_mlo": {"ssid": _env("ATP_WIFI_MLO_SSID", "TP_Link_MLO"), "pass": _env("ATP_WIFI_MLO_PASS", "12345678")},
+    "wifi_24g": {"ssid": _env("ATP_WIFI_24G_SSID", "TP_Link_Test_2G"), "pass": _env("ATP_WIFI_24G_PASS", "")},
+    "wifi_5g":  {"ssid": _env("ATP_WIFI_5G_SSID", "TP_Link_Test_5G"),  "pass": _env("ATP_WIFI_5G_PASS",  "")},
+    "wifi_6g":  {"ssid": _env("ATP_WIFI_6G_SSID", "TP_Link_Test_6G"),  "pass": _env("ATP_WIFI_6G_PASS",  "")},
+    "wifi_guest": {"ssid": _env("ATP_WIFI_GUEST_SSID", "TP_Link_Guest"), "pass": _env("ATP_WIFI_GUEST_PASS", "")},
+    "wifi_mlo": {"ssid": _env("ATP_WIFI_MLO_SSID", "TP_Link_MLO"), "pass": _env("ATP_WIFI_MLO_PASS", "")},
     "iperf3_server_ip": "192.168.1.100",
     "http_forward_port": 30000,
     "qos_upload_cap_mbps": 20,
@@ -138,7 +138,7 @@ class LocalHTTPServer:
 class ATPReporter:
     def __init__(self):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.out_dir = f"ATP_Report_{timestamp}"
+        self.out_dir = os.path.join("reports", f"ATP_{timestamp}")
         os.makedirs(self.out_dir, exist_ok=True)
         self.results = []
     def img_path(self, filename):
@@ -563,6 +563,10 @@ def main():
     parser.add_argument("--headed", action="store_true",
                         help="显示浏览器界面（调试定位 DOM 元素时建议开启）")
     args = parser.parse_args()
+    _missing = [k for k in ("ATP_ADMIN_PASS", "ATP_SUPERADMIN_PASS") if not os.environ.get(k)]
+    if _missing:
+        raise RuntimeError(f"Missing required env vars: {', '.join(_missing)}")
+
     reporter = ATPReporter()
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=not args.headed)

@@ -6,3 +6,6 @@ reports/
 temp_www/
 wifi_profile.xml
 .webcache/
+.env
+.playwright/
+*.env

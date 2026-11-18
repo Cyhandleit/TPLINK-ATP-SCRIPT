@@ -1,0 +1,8 @@
+
+.env
+.env.*
+reports/
+__pycache__/
+*.pyc
+.git/
+.playwright/
