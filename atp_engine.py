@@ -212,7 +212,8 @@ class ATPReporter:
             <tr>
                 <td><b>{r['id']}</b></td>
                 <td>{r['title']}</td>
-                <td><span style="background:{badge};color:#fff;padding:3px 8px;border-radius:4px;">{r['status']}</span></td>
+                <td><span style="background:{badge};color:#fff;padding:3px 8px;
+                border-radius:4px;">{r['status']}</span></td>
                 <td>{html.escape(r['detail'])}</td>
                 <td>{imgs}</td>
                 <td>{r['time']}</td>
@@ -230,7 +231,8 @@ class ATPReporter:
             <h2>TP-Link Router ATP Automated Test Summary Report</h2>
             <p>Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Gateway: {CONFIG['gateway_ip']}</p>
             <table>
-                <tr><th>Case ID</th><th>Test Item</th><th>Result</th><th>Key Metrics / Details</th><th>Auto Screenshot</th><th>Time</th></tr>
+                <tr><th>Case ID</th><th>Test Item</th><th>Result</th>
+                <th>Key Metrics / Details</th><th>Auto Screenshot</th><th>Time</th></tr>
                 {rows}
             </table>
         </body></html>
@@ -363,7 +365,8 @@ def run_stage_1(ctrl, term_page, rep):
         body_text = ctrl.page.inner_text("body")
         has_ssid = CONFIG["expected_ssid_prefix"] in body_text
         rep.record("1.1", "Login Test (admin/superadmin)", "PASS" if has_ssid else "FAIL",
-                   f"Prefix match={has_ssid}", ["1.1_Admin_Login.png", "1.1_Superadmin_Login.png", "1.1_WiFi_SSID_Default.png"])
+                   f"Prefix match={has_ssid}",
+                   ["1.1_Admin_Login.png", "1.1_Superadmin_Login.png", "1.1_WiFi_SSID_Default.png"])
     except Exception as e:
         rep.record("1.1", "Login Test (admin/superadmin)", "FAIL", str(e))
     try:
@@ -416,7 +419,8 @@ def run_stage_1(ctrl, term_page, rep):
         term_page.screenshot(path=rep.img_path("4.8_Test_IPv6_Score.png"), full_page=True)
         score_ok = "10/10" in term_page.inner_text("body")
         rep.record("4.8", "IPv6 Connectivity", "PASS" if (loss6 == 0 and score_ok) else "FAIL",
-                   f"IPv6 packet loss={loss6}%, test-ipv6 10/10={score_ok}", ["4.8_Ping6_Google.png", "4.8_Test_IPv6_Score.png"])
+                   f"IPv6 packet loss={loss6}%, test-ipv6 10/10={score_ok}",
+                   ["4.8_Ping6_Google.png", "4.8_Test_IPv6_Score.png"])
     except Exception as e:
         rep.record("4.8", "IPv6 Connectivity", "FAIL", str(e))
 
@@ -506,10 +510,12 @@ def run_stage_3(ctrl, term_page, rep):
             resp = ext_session.get(f"http://{pub_ip}:{CONFIG['http_forward_port']}", timeout=10)
             ok = resp.status_code == 200 and "Port Forwarding OK" in resp.text
             rep.record("4.1", "Port Forwarding (Port 30000)", "PASS" if ok else "FAIL",
-                       f"External access to {pub_ip}:30000 status code={resp.status_code}", ["4.1_Port_Forwarding_UI.png"])
+                       f"External access to {pub_ip}:30000 status code={resp.status_code}",
+                       ["4.1_Port_Forwarding_UI.png"])
         else:
             rep.record("4.1", "Port Forwarding (Port 30000)", "PASS",
-                       "Captured Virtual Servers config page (no external sub-NIC configured, skipping external callback assertion)", ["4.1_Port_Forwarding_UI.png"])
+                       "Captured Virtual Servers config page (no external sub-NIC configured, "
+                       "skipping external callback assertion)", ["4.1_Port_Forwarding_UI.png"])
     except Exception as e:
         rep.record("4.1", "Port Forwarding (Port 30000)", "FAIL", str(e))
     finally:
@@ -521,7 +527,8 @@ def run_stage_3(ctrl, term_page, rep):
          "Captured QoS bandwidth limit configuration page"),
         ("4.5", "DDNS (No-IP)", "sidebar_ddns", "4.5_DDNS_NoIP_UI.png",
          f"Verified No-IP dynamic domain configuration ({CONFIG['ddns_domain']})"),
-        ("4.7", "Guest Network", "sidebar_guest", "4.7_Guest_Network_UI.png", "Verified guest network configuration page"),
+        ("4.7", "Guest Network", "sidebar_guest", "4.7_Guest_Network_UI.png",
+         "Verified guest network configuration page"),
         ("4.15", "Multi-Link Operation (MLO)", "sidebar_wireless",
          "4.15_MLO_Wireless_UI.png", "Verified MLO wireless configuration interface"),
     ]:
