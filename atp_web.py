@@ -213,7 +213,9 @@ class ATPWebEngine:
                     imgs.append(fn)
                     if loss > 0:
                         all_ok = False
-                return ("PASS" if all_ok else "FAIL", "Gateway, 8.8.8.8, and DNS resolution verified", imgs, "\n".join(logs))
+                return ("PASS" if all_ok else "FAIL",
+                        "Gateway, 8.8.8.8, and DNS resolution verified", imgs,
+                        "\n".join(logs))
 
             if case_id == "2.4":
                 self.start_browser()
@@ -330,7 +332,8 @@ class ATPWebEngine:
                             r = s.get(f"http://{pub}:{port}", timeout=10)
                             ok = r.status_code == 200 and "Port Forwarding OK" in r.text
                             return ("PASS" if ok else "FAIL",
-                                    f"External access to {pub}:{port} status code={r.status_code}", [img], "\n".join(logs))
+                                    f"External access to {pub}:{port} status code={r.status_code}",
+                                    [img], "\n".join(logs))
                         except Exception as e:
                             return ("FAIL", str(e), [img], "\n".join(logs))
                     return ("PASS", "Captured Virtual Servers config page (skipping external callback assertion)", [
@@ -354,7 +357,8 @@ class ATPWebEngine:
             if case_id == "10.1":
                 try:
                     r = requests.get(
-                        f"{CONFIG['acs_api_url']}/devices/?query=%7B%22_id%22%3A%22{CONFIG['acs_device_id']}%22%7D", timeout=10)
+                        f"{CONFIG['acs_api_url']}/devices/?query=%7B%22_id%22%3A%22"
+                        f"{CONFIG['acs_device_id']}%22%7D", timeout=10)
                     devs = r.json()
                     ok = len(devs) > 0
                     return ("PASS" if ok else "FAIL",
@@ -364,8 +368,10 @@ class ATPWebEngine:
 
             if case_id == "10.2":
                 try:
-                    r = requests.post(f"{CONFIG['acs_api_url']}/devices/{CONFIG['acs_device_id']}/tasks?connection_request",
-                                      json={"name": "getParameterValues", "parameterNames": ["Device.WiFi.SSID.1.SSID"]}, timeout=15)
+                    r = requests.post(
+                        f"{CONFIG['acs_api_url']}/devices/{CONFIG['acs_device_id']}/tasks?connection_request",
+                        json={"name": "getParameterValues",
+                              "parameterNames": ["Device.WiFi.SSID.1.SSID"]}, timeout=15)
                     ok = r.status_code in (200, 202)
                     return ("PASS" if ok else "FAIL", f"Sent TR-069 response code={r.status_code}", [], "\n".join(logs))
                 except Exception as e:
@@ -383,7 +389,9 @@ class ATPWebEngine:
 
             if case_id == "1.3":
                 if not CONFIG.get("run_destructive"):
-                    return ("SKIP", "Destructive test case skipped (enable --run-destructive to execute)", [], "\n".join(logs))
+                    return ("SKIP",
+                            "Destructive test case skipped (enable --run-destructive to execute)",
+                            [], "\n".join(logs))
                 self.start_browser()
                 self.login("superadmin")
                 self.router_page.click("#top-reboot, button:has-text('Reboot')")
@@ -400,7 +408,9 @@ class ATPWebEngine:
 
             if case_id == "6.1":
                 if not CONFIG.get("run_destructive"):
-                    return ("SKIP", "Destructive test case skipped (enable --run-destructive to execute)", [], "\n".join(logs))
+                    return ("SKIP",
+                            "Destructive test case skipped (enable --run-destructive to execute)",
+                            [], "\n".join(logs))
                 if not os.path.exists(CONFIG["firmware_bin_path"]):
                     return ("SKIP", f"Firmware file not found: {CONFIG['firmware_bin_path']}", [], "\n".join(logs))
                 self.start_browser()
