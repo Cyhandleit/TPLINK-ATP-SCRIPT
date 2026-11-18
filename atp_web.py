@@ -292,12 +292,12 @@ class ATPWebEngine:
                     if time.time() - t0 > 20:
                         break
                 mbps = (downloaded * 8) / ((time.time() - t0) * 1_000_000)
-                self._term_snap(f"GET {url}",
-                                f"Downloaded: {downloaded /
-                                               (1024 *
-                                                1024):.2f} MB in {time.time() -
-                                                                  t0:.1f}s\nAvg Throughput: {mbps:.2f} Mbps",
-                                "3.7_P2P_Heavy_Download.png")
+                self._term_snap(
+                    f"GET {url}",
+                    f"Downloaded: {downloaded / (1024 * 1024):.2f} MB in "
+                    f"{time.time() - t0:.1f}s\nAvg Throughput: {mbps:.2f} Mbps",
+                    "3.7_P2P_Heavy_Download.png"
+                )
                 return ("PASS" if downloaded > 0 else "FAIL", f"Average download speed {mbps:.2f} Mbps",
                         ["3.7_P2P_Heavy_Download.png"], "\n".join(logs))
 
