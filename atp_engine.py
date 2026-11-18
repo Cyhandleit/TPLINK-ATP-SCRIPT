@@ -25,6 +25,28 @@ import requests
 from requests.adapters import HTTPAdapter
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
+__all__ = [
+    "CONFIG",
+    "UI_SELECTORS",
+    "SourceAddressAdapter",
+    "get_external_session",
+    "LocalHTTPServer",
+    "RouterWebController",
+    "ATPReporter",
+    "run_cmd",
+    "run_ping_stats",
+    "connect_wifi",
+    "wait_router_online",
+    "redact_image",
+    "run_stage_1",
+    "run_stage_2",
+    "run_stage_3",
+    "run_stage_4",
+    "run_stage_5",
+    "run_stage",
+    "main",
+]
+
 
 def _env(key, default=None, required=False):
     val = os.environ.get(key, default)
@@ -590,6 +612,37 @@ def main():
                         skip_destructive=not args.run_destructive)
         browser.close()
     reporter.generate_html()
+
+def run_stage(stage, ping_seconds=300, run_destructive=False, headed=False):
+    """以库形式调用单个测试阶段，不会自动读取 CLI 参数。
+
+    供外部程序 / CI / 定时任务导入 atp_engine 后直接调用。
+    示例:
+        from atp_engine import run_stage
+        run_stage("1", ping_seconds=10, run_destructive=False)
+    """
+    reporter = ATPReporter()
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=not headed)
+        context = browser.new_context(viewport={"width": 1366, "height": 850}, ignore_https_errors=headed)
+        router_page = context.new_page()
+        term_page = context.new_page()
+        ctrl = RouterWebController(router_page, reporter)
+        if stage in ("all", "1"):
+            run_stage_1(ctrl, term_page, reporter)
+        if stage in ("all", "2"):
+            run_stage_2(term_page, reporter)
+        if stage in ("all", "3"):
+            run_stage_3(ctrl, term_page, reporter)
+        if stage in ("all", "4"):
+            run_stage_4(reporter)
+        if stage in ("all", "5"):
+            run_stage_5(ctrl, term_page, reporter,
+                        ping_seconds=ping_seconds,
+                        skip_destructive=not run_destructive)
+        browser.close()
+    reporter.generate_html()
+
 
 if __name__ == "__main__":
     main()
