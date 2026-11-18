@@ -27,9 +27,9 @@ jobs:
 
       - name: Python syntax check
         run: |
-          python -m py_compile atp_engine.py
-          python -m py_compile atp_web.py
-          python -m py_compile atp_config.py
+          python3 -m py_compile atp_engine.py || { echo "py_compile atp_engine.py FAILED with exit code $?"; exit 1; }
+          python3 -m py_compile atp_web.py || { echo "py_compile atp_web.py FAILED with exit code $?"; exit 1; }
+          python3 -m py_compile atp_config.py || { echo "py_compile atp_config.py FAILED with exit code $?"; exit 1; }
 
       - name: Run flake8
         run: |
