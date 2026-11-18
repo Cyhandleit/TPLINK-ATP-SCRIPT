@@ -1,4 +1,4 @@
-"""TP-Link ATP Web UI — Flask 测试平台（配置、看板、逐用例重启）"""
+"""TP-Link ATP Web UI — Flask test platform (config, dashboard, per-case restart)."""
 import os, json, threading, time, subprocess, shlex, re, platform
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler
@@ -13,7 +13,7 @@ REPORT_ROOT = os.path.join(BASE, "reports")
 
 CONFIG = load_config()
 
-# ---------------- 测试状态 ----------------
+# ---------------- Test cases ----------------
 CASES = [
     # id, title, stage
     ("1.1", "Login Test (admin/superadmin)", "1"),
@@ -49,7 +49,7 @@ exec_lock = threading.Lock()
 
 app = Flask(__name__)
 
-# ---------------- 工具 ----------------
+# ---------------- Utilities ----------------
 def run_cmd(cmd, timeout=60, shell=False):
     try:
         p = subprocess.run(cmd, shell=shell, capture_output=True, text=True, timeout=timeout)
@@ -63,10 +63,10 @@ def run_ping_stats(target, count=10, ipv6=False):
     fc = ["-n", str(count)] if is_win else ["-c", str(count)]
     cmd = ["ping"] + f6 + fc + [target]
     code, out = run_cmd(cmd, timeout=count * 2 + 15)
-    m = re.search(r"(\d+(?:\.\d+)?)%\s*(?:loss|packet loss|丢失)", out, re.IGNORECASE)
+    m = re.search(r"(\d+(?:\.\d+)?)%\s*(?:loss|packet loss|lost)", out, re.IGNORECASE)
     loss = float(m.group(1)) if m else 100.0
     if is_win:
-        m2 = re.search(r"(?:Average|平均)\s*=\s*(\d+)ms", out, re.IGNORECASE)
+        m2 = re.search(r"(?:Average|avg)\s*=\s*(\d+)ms", out, re.IGNORECASE)
     else:
         m2 = re.search(r"min/avg/max/[^=]+=\s*[\d.]+/([\d.]+)/", out)
     avg = float(m2.group(1)) if m2 else 999.0
@@ -102,7 +102,7 @@ def redact_image(path, regions):
     except Exception:
         pass
 
-# ---------------- 测试执行器 ----------------
+# ---------------- Test executor ----------------
 class ATPWebEngine:
     def __init__(self):
         self.playwright = None
@@ -133,7 +133,7 @@ class ATPWebEngine:
             except Exception:
                 pass
 
-    # ---- 登录 ----
+    # ---- Login ----
     def login(self, role="superadmin"):
         u = CONFIG["superadmin_user"] if role == "superadmin" else CONFIG["admin_user"]
         p = CONFIG["superadmin_pass"] if role == "superadmin" else CONFIG["admin_pass"]
@@ -148,9 +148,9 @@ class ATPWebEngine:
         self.router_page.click(selector)
         self.router_page.wait_for_load_state("networkidle")
 
-    # ---- 各 case ----
+    # ---- Each case ----
     def run(self, case_id):
-        """执行单个 case，返回 (status, detail, screenshots, logs)"""
+        """Run a single case, return (status, detail, screenshots, logs)."""
         logs = []
         def log(msg):
             logs.append(msg)
@@ -171,7 +171,7 @@ class ATPWebEngine:
                 ok = CONFIG.get("expected_ssid_prefix", "TP_Link_") in body
                 for img in (img_a, img_b, img_c):
                     redact_image(img, CONFIG.get("sensitive_regions", {}).get(os.path.basename(img), []))
-                return ("PASS" if ok else "FAIL", f"前缀匹配={ok}", [img_a, img_b, img_c], "\n".join(logs))
+                return ("PASS" if ok else "FAIL", f"Prefix match={ok}", [img_a, img_b, img_c], "\n".join(logs))
 
             if case_id == "2.1":
                 self.start_browser()
@@ -186,7 +186,7 @@ class ATPWebEngine:
                 img2 = self._snap("2.1_WAN_Status.png")
                 txt = self.router_page.inner_text("body")
                 ok = ("PPPoE" in txt) and ("IPv6" in txt)
-                return ("PASS" if ok else "FAIL", "已验证 PPPoE 与 IPv6 状态页", [img1, img2], "\n".join(logs))
+                return ("PASS" if ok else "FAIL", "PPPoE and IPv6 status page verified", [img1, img2], "\n".join(logs))
 
             if case_id == "2.3":
                 self.start_browser()
@@ -199,7 +199,7 @@ class ATPWebEngine:
                     imgs.append(fn)
                     if loss > 0:
                         all_ok = False
-                return ("PASS" if all_ok else "FAIL", "网关、8.8.8.8 与 DNS 解析验证", imgs, "\n".join(logs))
+                return ("PASS" if all_ok else "FAIL", "Gateway, 8.8.8.8, and DNS resolution verified", imgs, "\n".join(logs))
 
             if case_id == "2.4":
                 self.start_browser()
@@ -209,7 +209,7 @@ class ATPWebEngine:
                 self.router_page.click("text=Diagnostics")
                 self.router_page.wait_for_load_state("networkidle")
                 img = self._snap("2.4_GUI_Diagnostics.png")
-                return ("PASS", "已进入系统诊断工具界面", [img], "\n".join(logs))
+                return ("PASS", "Entered system diagnostics tool interface", [img], "\n".join(logs))
 
             if case_id == "4.8":
                 self.start_browser()
@@ -221,7 +221,7 @@ class ATPWebEngine:
                 score_ok = "10/10" in self.term_page.inner_text("body")
                 ok = loss6 == 0 and score_ok
                 return ("PASS" if ok else "FAIL",
-                        f"IPv6丢包={loss6}%, test-ipv6 10/10={score_ok}",
+                        f"IPv6 packet loss={loss6}%, test-ipv6 10/10={score_ok}",
                         ["4.8_Ping6_Google.png", "4.8_Test_IPv6_Score.png"], "\n".join(logs))
 
             if case_id == "3.1":
@@ -237,7 +237,7 @@ class ATPWebEngine:
                 pw = CONFIG.get(key, {}).get("pass", "")
                 ok, cout = self._connect_wifi(ssid, pw)
                 if not ok:
-                    return ("SKIP", f"无法连接 SSID: {ssid}", [], "\n".join(logs))
+                    return ("SKIP", f"Unable to connect SSID: {ssid}", [], "\n".join(logs))
                 c, o = run_cmd("speedtest-cli --simple", timeout=60)
                 self._term_snap(f"[{ssid}] speedtest-cli --simple", o, f"{case_id.replace('/','_')}_WiFi_Speed.png")
                 return ("PASS" if c == 0 else "FAIL", o.replace("\n", " | "), [f"{case_id.replace('/','_')}_WiFi_Speed.png"], "\n".join(logs))
@@ -247,7 +247,7 @@ class ATPWebEngine:
                 self.term_page.goto("https://whatismyipaddress.com/", wait_until="domcontentloaded", timeout=25000)
                 self.term_page.wait_for_load_state("networkidle")
                 img = self._snap("3.5_Web_Browsing.png", page=self.term_page)
-                return ("PASS", "成功加载 whatismyipaddress.com", [img], "\n".join(logs))
+                return ("PASS", "Successfully loaded whatismyipaddress.com", [img], "\n".join(logs))
 
             if case_id == "3.6":
                 self.start_browser()
@@ -278,7 +278,7 @@ class ATPWebEngine:
                 self._term_snap(f"GET {url}",
                                 f"Downloaded: {downloaded / (1024*1024):.2f} MB in {time.time()-t0:.1f}s\nAvg Throughput: {mbps:.2f} Mbps",
                                 "3.7_P2P_Heavy_Download.png")
-                return ("PASS" if downloaded > 0 else "FAIL", f"平均下载速率 {mbps:.2f} Mbps",
+                return ("PASS" if downloaded > 0 else "FAIL", f"Average download speed {mbps:.2f} Mbps",
                         ["3.7_P2P_Heavy_Download.png"], "\n".join(logs))
 
             if case_id == "4.1":
@@ -310,10 +310,10 @@ class ATPWebEngine:
                             r = s.get(f"http://{pub}:{port}", timeout=10)
                             ok = r.status_code == 200 and "Port Forwarding OK" in r.text
                             return ("PASS" if ok else "FAIL",
-                                      f"外网访问 {pub}:{port} 状态码={r.status_code}", [img], "\n".join(logs))
+                                      f"External access to {pub}:{port} status code={r.status_code}", [img], "\n".join(logs))
                         except Exception as e:
                             return ("FAIL", str(e), [img], "\n".join(logs))
-                    return ("PASS", "已捕获 Virtual Servers 配置页面（跳过外部回调断言）", [img], "\n".join(logs))
+                    return ("PASS", "Captured Virtual Servers config page (skipping external callback assertion)", [img], "\n".join(logs))
                 finally:
                     srv.shutdown()
                     srv.server_close()
@@ -328,23 +328,23 @@ class ATPWebEngine:
                 self.router_page.click(sel_map[case_id])
                 self.router_page.wait_for_load_state("networkidle")
                 img = self._snap(f"{case_id.replace('/','_')}_UI.png")
-                return ("PASS", f"已验证 {case_id} 配置界面", [img], "\n".join(logs))
+                return ("PASS", f"Verified {case_id} config interface", [img], "\n".join(logs))
 
             if case_id == "10.1":
                 try:
                     r = requests.get(f"{CONFIG['acs_api_url']}/devices/?query=%7B%22_id%22%3A%22{CONFIG['acs_device_id']}%22%7D", timeout=10)
                     devs = r.json()
                     ok = len(devs) > 0
-                    return ("PASS" if ok else "FAIL", f"GenieACS 查询设备 {CONFIG['acs_device_id']} 在线={ok}", [], "\n".join(logs))
+                    return ("PASS" if ok else "FAIL", f"GenieACS queried device {CONFIG['acs_device_id']} online={ok}", [], "\n".join(logs))
                 except Exception as e:
-                    return ("SKIP", f"无法连接 GenieACS: {e}", [], "\n".join(logs))
+                    return ("SKIP", f"Unable to connect GenieACS: {e}", [], "\n".join(logs))
 
             if case_id == "10.2":
                 try:
                     r = requests.post(f"{CONFIG['acs_api_url']}/devices/{CONFIG['acs_device_id']}/tasks?connection_request",
                                       json={"name": "getParameterValues", "parameterNames": ["Device.WiFi.SSID.1.SSID"]}, timeout=15)
                     ok = r.status_code in (200, 202)
-                    return ("PASS" if ok else "FAIL", f"下发 TR-069 响应码={r.status_code}", [], "\n".join(logs))
+                    return ("PASS" if ok else "FAIL", f"Sent TR-069 response code={r.status_code}", [], "\n".join(logs))
                 except Exception as e:
                     return ("FAIL", str(e), [], "\n".join(logs))
 
@@ -353,13 +353,13 @@ class ATPWebEngine:
                     requests.post(f"{CONFIG['acs_api_url']}/devices/{CONFIG['acs_device_id']}/tasks?connection_request",
                                   json={"name": "reboot"}, timeout=15)
                     rec = wait_router_online(timeout=180)
-                    return ("PASS" if rec else "FAIL", f"ACS 远程重启，恢复上线={rec}", [], "\n".join(logs))
+                    return ("PASS" if rec else "FAIL", f"ACS remote reboot, recovered online={rec}", [], "\n".join(logs))
                 except Exception as e:
                     return ("FAIL", str(e), [], "\n".join(logs))
 
             if case_id == "1.3":
                 if not CONFIG.get("run_destructive"):
-                    return ("SKIP", "破坏性用例已跳过（启用 --run-destructive 后执行）", [], "\n".join(logs))
+                    return ("SKIP", "Destructive test case skipped (enable --run-destructive to execute)", [], "\n".join(logs))
                 self.start_browser()
                 self.login("superadmin")
                 self.router_page.click("#top-reboot, button:has-text('Reboot')")
@@ -371,14 +371,14 @@ class ATPWebEngine:
                 if rec:
                     self.login("superadmin")
                     img2 = self._snap("1.3_After_Reboot_Relogin.png")
-                return ("PASS" if rec else "FAIL", f"Web UI 重启并重新登录={rec}",
+                return ("PASS" if rec else "FAIL", f"Web UI reboot and re-login={rec}",
                         [i for i in (img1, img2) if i], "\n".join(logs))
 
             if case_id == "6.1":
                 if not CONFIG.get("run_destructive"):
-                    return ("SKIP", "破坏性用例已跳过（启用 --run-destructive 后执行）", [], "\n".join(logs))
+                    return ("SKIP", "Destructive test case skipped (enable --run-destructive to execute)", [], "\n".join(logs))
                 if not os.path.exists(CONFIG["firmware_bin_path"]):
-                    return ("SKIP", f"未找到固件文件: {CONFIG['firmware_bin_path']}", [], "\n".join(logs))
+                    return ("SKIP", f"Firmware file not found: {CONFIG['firmware_bin_path']}", [], "\n".join(logs))
                 self.start_browser()
                 self.login("superadmin")
                 self.router_page.click("text=Advanced")
@@ -392,7 +392,7 @@ class ATPWebEngine:
                 if rec:
                     self.login("superadmin")
                     img2 = self._snap("6.1_FW_Upgrade_Done.png")
-                return ("PASS" if rec else "FAIL", "固件升级完成并校验版本",
+                return ("PASS" if rec else "FAIL", "Firmware upgrade completed and version verified",
                         [i for i in (img1, img2) if i], "\n".join(logs))
 
             if case_id == "2.5/7.2":
@@ -410,16 +410,16 @@ class ATPWebEngine:
                     ok = loss == 0.0 and avg <= 30.0
                     if not ok:
                         all_pass = False
-                    details.append(f"{tgt}: 丢包={loss}%, 平均延迟={avg}ms")
+                    details.append(f"{tgt}: packet loss={loss}%, average latency={avg}ms")
                 return ("PASS" if all_pass else "FAIL", " | ".join(details), imgs, "\n".join(logs))
 
-            return ("SKIP", f"未实现 case: {case_id}", [], "\n".join(logs))
+            return ("SKIP", f"Case not implemented: {case_id}", [], "\n".join(logs))
         except Exception as e:
             return ("FAIL", str(e), [], "\n".join(logs))
         finally:
             pass
 
-    # ---- 内部辅助 ----
+    # ---- Internal helpers ----
     def _snap(self, name, page=None):
         pg = page or self.router_page
         d = os.path.join(REPORT_ROOT, datetime.now().strftime("%Y%m%d_%H%M%S"))
@@ -460,7 +460,7 @@ class ATPWebEngine:
 
 ENGINE = ATPWebEngine()
 
-# ---------------- 后台执行 ----------------
+# ---------------- Background execution ----------------
 def run_case_async(case_id):
     with state_lock:
         state[case_id] = {"status": "RUNNING", "detail": "", "screenshots": [],
@@ -482,7 +482,7 @@ def run_stage_async(stage):
     for cid in ids:
         run_case_async(cid)
 
-# ---------------- 输入验证 ----------------
+# ---------------- Input validation ----------------
 _IP_RE = re.compile(r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$")
 _IMG_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
@@ -497,17 +497,17 @@ def _valid_ipv4(value):
 
 
 def validate_config_override(overrides):
-    """校验 /api/run 透传的配置覆盖；返回错误信息列表，空列表表示通过。"""
+    """Validate config overrides passed through /api/run; returns a list of error messages, empty list means pass."""
     errors = []
     if not isinstance(overrides, dict):
-        return ["config 必须是 JSON 对象"]
+        return ["config must be a JSON object"]
     ip = overrides.get("gateway_ip")
     if ip is not None and not _valid_ipv4(ip):
-        errors.append("gateway_ip 格式不正确（需为 IPv4，如 192.168.1.1）")
+        errors.append("gateway_ip format incorrect (must be IPv4, e.g. 192.168.1.1)")
     for user_key, pass_key in (("admin_user", "admin_pass"),
                                ("superadmin_user", "superadmin_pass")):
         if overrides.get(user_key) and not overrides.get(pass_key):
-            errors.append(f"{user_key} 已填写，{pass_key} 为必填项")
+            errors.append(f"{user_key} filled in, {pass_key} is required")
     return errors
 
 
@@ -515,8 +515,7 @@ def _report_file_url(d, fn):
     rel = os.path.relpath(os.path.join(d, fn), BASE).replace(os.sep, "/")
     return "/screenshot/" + rel
 
-
-# ---------------- 路由 ----------------
+# ---------------- Routes ----------------
 
 @app.route("/")
 def index():
@@ -529,7 +528,7 @@ def api_state():
         cases = {cid: dict(s) for cid, s in state.items()}
         terminal = {"PASS", "FAIL", "SKIP"}
         done = sum(1 for s in state.values() if s.get("status") in terminal)
-    # 把绝对路径截图变成可通过 /screenshot 访问的相对路径
+    # Convert absolute screenshot paths to relative paths accessible via /screenshot
     for cid, c in cases.items():
         c["screenshots"] = ["/screenshot/" + os.path.relpath(p, BASE) if os.path.isabs(p) else p for p in c.get("screenshots", [])]
     total = len(CASES)
@@ -556,20 +555,20 @@ def api_run():
 
     errors = validate_config_override(overrides)
     if errors:
-        return jsonify({"ok": False, "error": "参数校验失败", "details": errors}), 400
+        return jsonify({"ok": False, "error": "Parameter validation failed", "details": errors}), 400
 
     if not exec_lock.acquire(blocking=False):
-        return jsonify({"ok": False, "error": "有测试正在执行，请稍后再试"}), 409
+        return jsonify({"ok": False, "error": "A test is currently running, please try again later"}), 409
 
     def job():
         try:
-            # 前端传入的配置覆盖持久化到 config.json，并作用于当前运行时；
-            # 执行完不再恢复，下次启动/下次测试直接使用持久化后的配置。
+            # Config overrides passed from frontend are persisted to config.json and applied to the current runtime;
+            # after execution they are not restored, and subsequent starts/tests use the persisted config directly.
             CONFIG.update(overrides)
             try:
                 save_config(CONFIG)
-            except Exception as e:  # 持久化失败不阻止本次运行，仅在内存中生效
-                print(f"[api/run] 保存 config.json 失败: {e}")
+            except Exception as e:  # Persistence failure does not block this run, only takes effect in memory
+                print(f"[api/run] Failed to save config.json: {e}")
             try:
                 if case:
                     run_case_async(case)
@@ -579,7 +578,7 @@ def api_run():
                 else:
                     run_stage_async(stage)
             finally:
-                pass  # 配置已持久化，保留供后续测试使用
+                pass  # Config persisted, retained for subsequent tests
         finally:
             exec_lock.release()
 
@@ -597,7 +596,7 @@ def screenshot(fpath):
 
 @app.route("/api/reports")
 def api_reports():
-    """列出 reports/ 下的报告目录，带 summary_report.html 和截图的可访问 URL。"""
+    """List report directories under reports/, with summary_report.html and screenshot accessible URLs."""
     reports = []
     if os.path.isdir(REPORT_ROOT):
         entries = []

@@ -1,13 +1,13 @@
 # TP-Link ATP — docker-compose
 #
-# 单服务：
-#   atp-web : Flask Web UI（配置、看板、逐用例/阶段运行），宿主机直连 http://localhost:5000
-#             通过 Web UI 即可运行全部测试阶段（stage 1~5 及 all），无需单独的 atp-engine 容器。
+# Single service:
+#   atp-web : Flask Web UI (configuration, dashboard, per-case/stage run), host connects directly to http://localhost:5000
+#             All test stages (stage 1~5 and all) can be run via Web UI, no separate atp-engine container needed.
 #
-# 重要：容器内 Playwright 需控制浏览器访问局域网路由器（默认 192.168.1.1）。
-# 本文件默认使用 network_mode: host，适合 Linux 宿主机，可直达局域网设备。
-# macOS / Windows 上 bridge 网络下容器默认不可直达物理局域网，请改用 bridge 并确保
-# 路由器 IP 可达（或 pre-build 浏览器后经 host.docker.internal 路由）。
+# Important: Playwright inside container needs to control browser to access LAN router (default 192.168.1.1).
+# This file defaults to network_mode: host, suitable for Linux host, can directly reach LAN devices.
+# On macOS / Windows, containers under bridge network cannot directly reach physical LAN by default, please use bridge and ensure
+# router IP reachable (or route via host.docker.internal after pre-building browser).
 
 services:
   atp-web:
@@ -30,14 +30,14 @@ services:
       - ATP_DEBUG=${ATP_DEBUG:-0}
       - PYTHONUNBUFFERED=1
     volumes:
-      # 测试报告与截图持久化到宿主机
+      # Test reports and screenshots persisted to host
       - ./reports:/app/reports
-      # 可选：挂载自定义 config.json 覆盖默认配置（ro 避免容器内写回宿主机）
+      # Optional: mount custom config.json to override default config (ro to avoid container writing back to host)
       - ./config.json:/app/config.json:ro
-    # Flask 监听 0.0.0.0:5000；network_mode: host 下宿主机直连，无需 ports 映射
-    # (network_mode: host 与 ports 不可共存)
+    # Flask listens on 0.0.0.0:5000; under network_mode: host host connects directly, no ports mapping needed
+    # (network_mode: host and ports cannot coexist)
     healthcheck:
-      # network_mode: host 下容器内 127.0.0.1 即宿主机 127.0.0.1，Flask 已绑定 5000
+      # Under network_mode: host, 127.0.0.1 inside container is host 127.0.0.1, Flask has bound 5000
       test: ["CMD", "curl", "-fsS", "--max-time", "5", "http://127.0.0.1:5000/"]
       interval: 30s
       timeout: 5s

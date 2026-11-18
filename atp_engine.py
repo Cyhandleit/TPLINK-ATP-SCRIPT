@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 """
-TP-Link Router ATP 自动化测试执行引擎
-覆盖章节：1.1, 1.3, 2.1-2.5, 3.1-3.7, 4.1-4.9, 4.12, 4.15, 6.1, 7.2-7.4, 9.1-9.6, 10.1-10.5
+TP-Link Router ATP Automated Test Execution Engine
+Coverage: 1.1, 1.3, 2.1-2.5, 3.1-3.7, 4.1-4.9, 4.12, 4.15, 6.1, 7.2-7.4, 9.1-9.6, 10.1-10.5
 """
 
 import os
@@ -84,7 +85,7 @@ CONFIG = {
     "tauc_user": _env("ATP_TAUC_USER", "tauc_tester@example.com"),
     "tauc_pass": _env("ATP_TAUC_PASS", "TaucPass123!"),
     "device_sn": "2245123456789",
-    # 截图敏感区域涂黑：{截图文件名片段: [(x1,y1,x2,y2), ...]}，按实际固件型号填坐标
+    # Black out sensitive regions in screenshots: {screenshot filename fragment: [(x1,y1,x2,y2), ...]}, fill in coordinates based on actual firmware model
     "sensitive_regions": {},
 }
 
@@ -204,7 +205,7 @@ class ATPReporter:
                 <td>{r['time']}</td>
             </tr>"""
         report_html = f"""
-        <html><head><meta charset="utf-8"><title>TP-Link ATP 自动化测试报告</title>
+        <html><head><meta charset="utf-8"><title>TP-Link ATP Automated Test Report</title>
         <style>
             body {{ font-family: Arial, sans-serif; margin: 24px; }}
             table {{ border-collapse: collapse; width: 100%; }}
@@ -213,10 +214,10 @@ class ATPReporter:
             tr:nth-child(even) {{ background: #f9f9f9; }}
         </style></head>
         <body>
-            <h2>TP-Link 路由器 ATP 自动化测试汇总报告</h2>
-            <p>生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 网关：{CONFIG['gateway_ip']}</p>
+            <h2>TP-Link Router ATP Automated Test Summary Report</h2>
+            <p>Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Gateway: {CONFIG['gateway_ip']}</p>
             <table>
-                <tr><th>用例编号</th><th>测试项目</th><th>结果</th><th>关键指标 / 详情</th><th>自动截图</th><th>时间</th></tr>
+                <tr><th>Case ID</th><th>Test Item</th><th>Result</th><th>Key Metrics / Details</th><th>Auto Screenshot</th><th>Time</th></tr>
                 {rows}
             </table>
         </body></html>
@@ -224,7 +225,7 @@ class ATPReporter:
         report_file = os.path.join(self.out_dir, "summary_report.html")
         with open(report_file, "w", encoding="utf-8") as f:
             f.write(report_html)
-        print(f"\n>>> 测试完成！汇总报告与所有截图已保存至目录: {self.out_dir}")
+        print(f"\n>>> Test complete! Summary report and all screenshots saved to directory: {self.out_dir}")
 
 def run_cmd(cmd, timeout=60, shell=False):
     try:
@@ -246,7 +247,6 @@ def redact_image(path, regions):
             im.save(path)
     except Exception:
         pass
-
 
 def connect_wifi(ssid, password):
     sys_os = platform.system()
@@ -281,10 +281,10 @@ def run_ping_stats(target, count=10, ipv6=False):
     flag_cnt = ["-n", str(count)] if is_win else ["-c", str(count)]
     cmd = ["ping"] + flag_v6 + flag_cnt + [target]
     code, out = run_cmd(cmd, timeout=count * 2 + 15)
-    loss_match = re.search(r"(\d+(?:\.\d+)?)%\s*(?:loss|packet loss|丢失)", out, re.IGNORECASE)
+    loss_match = re.search(r"(\d+(?:\.\d+)?)%\s*(?:loss|packet loss|lost)", out, re.IGNORECASE)
     loss_pct = float(loss_match.group(1)) if loss_match else 100.0
     if is_win:
-        avg_match = re.search(r"(?:Average|平均)\s*=\s*(\d+)ms", out, re.IGNORECASE)
+        avg_match = re.search(r"(?:Average|avg)\s*=\s*(\d+)ms", out, re.IGNORECASE)
     else:
         avg_match = re.search(r"min/avg/max/[^=]+=\s*[\d.]+/([\d.]+)/", out)
     avg_ms = float(avg_match.group(1)) if avg_match else 999.0
@@ -328,7 +328,7 @@ class RouterWebController:
             return ""
 
 def run_stage_1(ctrl, term_page, rep):
-    print("\n=== 开始执行 Stage 1: 基础访问与连通性检查 ===")
+    print("\n=== Starting Stage 1: Basic Access and Connectivity Check ===")
     try:
         ctrl.login("admin", "1.1_Admin_Login.png")
         ctrl.login("superadmin", "1.1_Superadmin_Login.png")
@@ -341,7 +341,7 @@ def run_stage_1(ctrl, term_page, rep):
         body_text = ctrl.page.inner_text("body")
         has_ssid = CONFIG["expected_ssid_prefix"] in body_text
         rep.record("1.1", "Login Test (admin/superadmin)", "PASS" if has_ssid else "FAIL",
-                   f"前缀匹配={has_ssid}", ["1.1_Admin_Login.png", "1.1_Superadmin_Login.png", "1.1_WiFi_SSID_Default.png"])
+                   f"Prefix match={has_ssid}", ["1.1_Admin_Login.png", "1.1_Superadmin_Login.png", "1.1_WiFi_SSID_Default.png"])
     except Exception as e:
         rep.record("1.1", "Login Test (admin/superadmin)", "FAIL", str(e))
     try:
@@ -356,7 +356,7 @@ def run_stage_1(ctrl, term_page, rep):
         status_txt = ctrl.page.inner_text("body")
         ok = ("PPPoE" in status_txt) and ("IPv6" in status_txt)
         rep.record("2.1", "WAN Connectivity (PPPoE & IPv6)", "PASS" if ok else "FAIL",
-                   "已验证 PPPoE 与 IPv6 状态页", ["2.1_WAN_Internet_Config.png", "2.1_WAN_Status.png"])
+                   "PPPoE and IPv6 status page verified", ["2.1_WAN_Internet_Config.png", "2.1_WAN_Status.png"])
     except Exception as e:
         rep.record("2.1", "WAN Connectivity (PPPoE & IPv6)", "FAIL", str(e))
     imgs_23 = []
@@ -369,14 +369,14 @@ def run_stage_1(ctrl, term_page, rep):
         if loss > 0:
             all_ok = False
     rep.record("2.3", "Internet Connectivity Test", "PASS" if all_ok else "FAIL",
-               "网关、8.8.8.8 与 DNS 解析验证", imgs_23)
+               "Gateway, 8.8.8.8, and DNS resolution verified", imgs_23)
     try:
         ctrl.page.click(UI_SELECTORS["menu_advanced"])
         ctrl.page.click(UI_SELECTORS["sidebar_sys_tools"])
         ctrl.page.click(UI_SELECTORS["sidebar_diagnostics"])
         ctrl.page.wait_for_load_state("networkidle")
         ctrl.page.screenshot(path=rep.img_path("2.4_GUI_Diagnostics.png"))
-        rep.record("2.4", "WAN Diagnostics (GUI)", "PASS", "已进入系统诊断工具界面", ["2.4_GUI_Diagnostics.png"])
+        rep.record("2.4", "WAN Diagnostics (GUI)", "PASS", "Entered system diagnostics tool interface", ["2.4_GUI_Diagnostics.png"])
     except Exception as e:
         rep.record("2.4", "WAN Diagnostics (GUI)", "FAIL", str(e))
     loss6, avg6, cmd6, out6 = run_ping_stats("www.google.com", count=4, ipv6=True)
@@ -387,13 +387,13 @@ def run_stage_1(ctrl, term_page, rep):
         term_page.screenshot(path=rep.img_path("4.8_Test_IPv6_Score.png"), full_page=True)
         score_ok = "10/10" in term_page.inner_text("body")
         rep.record("4.8", "IPv6 Connectivity", "PASS" if (loss6 == 0 and score_ok) else "FAIL",
-                   f"IPv6丢包={loss6}%, test-ipv6 10/10={score_ok}", ["4.8_Ping6_Google.png", "4.8_Test_IPv6_Score.png"])
+                   f"IPv6 packet loss={loss6}%, test-ipv6 10/10={score_ok}", ["4.8_Ping6_Google.png", "4.8_Test_IPv6_Score.png"])
     except Exception as e:
         rep.record("4.8", "IPv6 Connectivity", "FAIL", str(e))
 
 def run_stage_2(term_page, rep):
-    print("\n=== 开始执行 Stage 2: 吞吐量测速与网络体验测试 ===")
-    # iperf3 未常用，跳过（OpenSpeedTest 需 server+client，后续可替换）
+    print("\n=== Starting Stage 2: Throughput Speed Test and Network Experience Test ===")
+    # iperf3 not commonly used, skipped (OpenSpeedTest needs server+client, can replace later)
     code_spd, out_spd = run_cmd("speedtest-cli --simple", timeout=60)
     rep.render_terminal_screenshot(term_page, "speedtest-cli --simple", out_spd, "3.1_LAN_Speedtest.png")
     rep.record("3.1", "LAN Speed Test", "PASS" if code_spd == 0 else "FAIL",
@@ -406,7 +406,7 @@ def run_stage_2(term_page, rep):
     for cid, title, cfg, img_fn in bands:
         ok, conn_out = connect_wifi(cfg["ssid"], cfg["pass"])
         if not ok:
-            rep.record(cid, title, "SKIP", f"无法连接 SSID: {cfg['ssid']} (若设备不支持该频段可忽略)")
+            rep.record(cid, title, "SKIP", f"Unable to connect SSID: {cfg['ssid']} (ignore if device does not support this band)")
             continue
         c_s, o_s = run_cmd("speedtest-cli --simple", timeout=60)
         rep.render_terminal_screenshot(term_page, f"[{cfg['ssid']}] speedtest-cli --simple", o_s, img_fn)
@@ -415,7 +415,7 @@ def run_stage_2(term_page, rep):
         term_page.goto("https://whatismyipaddress.com/", wait_until="domcontentloaded", timeout=25000)
         term_page.wait_for_load_state("networkidle")
         term_page.screenshot(path=rep.img_path("3.5_Web_Browsing.png"))
-        rep.record("3.5", "Web Browsing", "PASS", "成功加载 whatismyipaddress.com", ["3.5_Web_Browsing.png"])
+        rep.record("3.5", "Web Browsing", "PASS", "Successfully loaded whatismyipaddress.com", ["3.5_Web_Browsing.png"])
     except Exception as e:
         rep.record("3.5", "Web Browsing", "FAIL", str(e))
     try:
@@ -449,12 +449,12 @@ def run_stage_2(term_page, rep):
             "3.7_P2P_Heavy_Download.png"
         )
         rep.record("3.7", "P2P / Heavy Download (testfile.org)", "PASS" if downloaded > 0 else "FAIL",
-                   f"平均下载速率 {mbps:.2f} Mbps", ["3.7_P2P_Heavy_Download.png"])
+                   f"Average download speed {mbps:.2f} Mbps", ["3.7_P2P_Heavy_Download.png"])
     except Exception as e:
         rep.record("3.7", "P2P / Heavy Download (testfile.org)", "FAIL", str(e))
 
 def run_stage_3(ctrl, term_page, rep):
-    print("\n=== 开始执行 Stage 3: 核心功能（即配即验即清理） ===")
+    print("\n=== Starting Stage 3: Core Functionality (Configure-Verify-Cleanup) ===")
     ext_session = get_external_session()
     pub_ip = ctrl.get_public_ip()
     http_srv = LocalHTTPServer(CONFIG["http_forward_port"])
@@ -470,20 +470,20 @@ def run_stage_3(ctrl, term_page, rep):
             resp = ext_session.get(f"http://{pub_ip}:{CONFIG['http_forward_port']}", timeout=10)
             ok = resp.status_code == 200 and "Port Forwarding OK" in resp.text
             rep.record("4.1", "Port Forwarding (Port 30000)", "PASS" if ok else "FAIL",
-                       f"外网访问 {pub_ip}:30000 状态码={resp.status_code}", ["4.1_Port_Forwarding_UI.png"])
+                       f"External access to {pub_ip}:30000 status code={resp.status_code}", ["4.1_Port_Forwarding_UI.png"])
         else:
             rep.record("4.1", "Port Forwarding (Port 30000)", "PASS",
-                       "已捕获 Virtual Servers 配置页面（未配置外网副网卡，跳过外部回调断言）", ["4.1_Port_Forwarding_UI.png"])
+                       "Captured Virtual Servers config page (no external sub-NIC configured, skipping external callback assertion)", ["4.1_Port_Forwarding_UI.png"])
     except Exception as e:
         rep.record("4.1", "Port Forwarding (Port 30000)", "FAIL", str(e))
     finally:
         http_srv.stop()
     for cid, title, sidebar, img, note in [
-        ("4.3", "Parental Control / Web Filtering", "sidebar_parental", "4.3_Parental_Control_UI.png", "已验证家长控制关键词过滤界面"),
-        ("4.4", "QoS (Quality of Service)", "sidebar_qos", "4.4_QoS_Config_UI.png", "已捕获 QoS 带宽限制配置页面"),
-        ("4.5", "DDNS (No-IP)", "sidebar_ddns", "4.5_DDNS_NoIP_UI.png", f"已验证 No-IP 动态域名配置 ({CONFIG['ddns_domain']})"),
-        ("4.7", "Guest Network", "sidebar_guest", "4.7_Guest_Network_UI.png", "已验证访客网络配置页面"),
-        ("4.15", "Multi-Link Operation (MLO)", "sidebar_wireless", "4.15_MLO_Wireless_UI.png", "已验证 MLO 无线配置界面"),
+        ("4.3", "Parental Control / Web Filtering", "sidebar_parental", "4.3_Parental_Control_UI.png", "Verified parental control keyword filtering interface"),
+        ("4.4", "QoS (Quality of Service)", "sidebar_qos", "4.4_QoS_Config_UI.png", "Captured QoS bandwidth limit configuration page"),
+        ("4.5", "DDNS (No-IP)", "sidebar_ddns", "4.5_DDNS_NoIP_UI.png", f"Verified No-IP dynamic domain configuration ({CONFIG['ddns_domain']})"),
+        ("4.7", "Guest Network", "sidebar_guest", "4.7_Guest_Network_UI.png", "Verified guest network configuration page"),
+        ("4.15", "Multi-Link Operation (MLO)", "sidebar_wireless", "4.15_MLO_Wireless_UI.png", "Verified MLO wireless configuration interface"),
     ]:
         try:
             ctrl.page.click(UI_SELECTORS["menu_advanced"])
@@ -495,7 +495,7 @@ def run_stage_3(ctrl, term_page, rep):
             rep.record(cid, title, "FAIL", str(e))
 
 def run_stage_4(rep):
-    print("\n=== 开始执行 Stage 4: ACS TR-069 与 TAUC 远程管理 ===")
+    print("\n=== Starting Stage 4: ACS TR-069 and TAUC Remote Management ===")
     acs_base = CONFIG["acs_api_url"]
     dev_id = CONFIG["acs_device_id"]
     try:
@@ -503,27 +503,27 @@ def run_stage_4(rep):
         devices = r.json()
         online = len(devices) > 0
         rep.record("10.1", "ACS Registration and Connection", "PASS" if online else "FAIL",
-                   f"GenieACS 查询设备 {dev_id} 在线={online}")
+                   f"GenieACS queried device {dev_id} online={online}")
     except Exception as e:
-        rep.record("10.1", "ACS Registration and Connection", "SKIP", f"无法连接 GenieACS ({acs_base}): {e}")
+        rep.record("10.1", "ACS Registration and Connection", "SKIP", f"Unable to connect GenieACS ({acs_base}): {e}")
         return
     try:
         task_payload = {"name": "getParameterValues", "parameterNames": ["Device.WiFi.SSID.1.SSID"]}
         r = requests.post(f"{acs_base}/devices/{dev_id}/tasks?connection_request", json=task_payload, timeout=15)
         rep.record("10.2", "ACS Parameter GET/SET", "PASS" if r.status_code in (200, 202) else "FAIL",
-                   f"下发 TR-069 GetParameterValues 响应码={r.status_code}")
+                   f"Sent TR-069 GetParameterValues response code={r.status_code}")
     except Exception as e:
         rep.record("10.2", "ACS Parameter GET/SET", "FAIL", str(e))
     try:
         r = requests.post(f"{acs_base}/devices/{dev_id}/tasks?connection_request", json={"name": "reboot"}, timeout=15)
         recovered = wait_router_online(timeout=180)
         rep.record("10.3", "ACS Remote Reboot", "PASS" if recovered else "FAIL",
-                   f"ACS 远程重启指令已下发，设备恢复上线={recovered}")
+                   f"ACS remote reboot command sent, device recovered online={recovered}")
     except Exception as e:
         rep.record("10.3", "ACS Remote Reboot", "FAIL", str(e))
 
 def run_stage_5(ctrl, term_page, rep, ping_seconds=3600, skip_destructive=False):
-    print("\n=== 开始执行 Stage 5: 重启、升级与长稳测试 ===")
+    print("\n=== Starting Stage 5: Reboot, Upgrade, and Long-Term Stability Test ===")
     if not skip_destructive:
         try:
             ctrl.login("superadmin")
@@ -535,7 +535,7 @@ def run_stage_5(ctrl, term_page, rep, ping_seconds=3600, skip_destructive=False)
             if recovered:
                 ctrl.login("superadmin", "1.3_After_Reboot_Relogin.png")
             rep.record("1.3", "Router Reboot (Web UI)", "PASS" if recovered else "FAIL",
-                       f"Web UI 重启并自动重新登录={recovered}",
+                       f"Web UI reboot and automatic re-login={recovered}",
                        ["1.3_WebUI_Reboot_Confirm.png", "1.3_After_Reboot_Relogin.png"])
         except Exception as e:
             rep.record("1.3", "Router Reboot (Web UI)", "FAIL", str(e))
@@ -552,13 +552,14 @@ def run_stage_5(ctrl, term_page, rep, ping_seconds=3600, skip_destructive=False)
                 if recovered:
                     ctrl.login("superadmin", "6.1_FW_Upgrade_Done.png")
                 rep.record("6.1", "Firmware Upgrade via UI", "PASS" if recovered else "FAIL",
-                           "固件升级完成并校验版本", ["6.1_FW_Upgrade_Ready.png", "6.1_FW_Upgrade_Done.png"])
+                           "Firmware upgrade completed and version verified",
+                           ["6.1_FW_Upgrade_Ready.png", "6.1_FW_Upgrade_Done.png"])
             except Exception as e:
                 rep.record("6.1", "Firmware Upgrade via UI", "FAIL", str(e))
         else:
-            rep.record("6.1", "Firmware Upgrade via UI", "SKIP", f"未找到固件文件: {CONFIG['firmware_bin_path']}")
+            rep.record("6.1", "Firmware Upgrade via UI", "SKIP", f"Firmware file not found: {CONFIG['firmware_bin_path']}")
     targets = [CONFIG["gateway_ip"], "8.8.8.8", "1.1.1.1"]
-    print(f">>> 启动长稳 Ping 监控 ({ping_seconds} 秒) -> 目标: {targets}")
+    print(f">>> Starting long-term Ping monitoring ({ping_seconds} seconds) -> targets: {targets}")
     imgs_ping = []
     all_pass = True
     details = []
@@ -570,20 +571,20 @@ def run_stage_5(ctrl, term_page, rep, ping_seconds=3600, skip_destructive=False)
         passed = (loss == 0.0) and (avg_ms <= 30.0)
         if not passed:
             all_pass = False
-        details.append(f"{tgt}: 丢包={loss}%, 平均延迟={avg_ms}ms")
+        details.append(f"{tgt}: packet loss={loss}%, average latency={avg_ms}ms")
     rep.record("2.5 / 7.2", f"Long-Duration Ping Stability ({ping_seconds}s)",
                "PASS" if all_pass else "FAIL", " | ".join(details), imgs_ping)
 
 def main():
-    parser = argparse.ArgumentParser(description="TP-Link Router ATP 自动化测试脚本")
+    parser = argparse.ArgumentParser(description="TP-Link Router ATP Automated Test Script")
     parser.add_argument("--stage", default="all", choices=["all", "1", "2", "3", "4", "5"],
-                        help="指定运行的测试阶段 (默认 all)")
+                        help="Specify test stage to run (default all)")
     parser.add_argument("--ping-seconds", type=int, default=3600,
-                        help="长稳 Ping 测试秒数 (正式测试为 3600，调试可设为 10)")
+                        help="Long-term Ping test seconds (3600 for formal test, can set to 10 for debugging)")
     parser.add_argument("--run-destructive", action="store_true",
-                        help="执行重启、固件升级等中断性用例（默认跳过）")
+                        help="Execute disruptive test cases such as reboot and firmware upgrade (skipped by default)")
     parser.add_argument("--headed", action="store_true",
-                        help="显示浏览器界面（调试定位 DOM 元素时建议开启）")
+                        help="Show browser UI (recommended to enable when debugging DOM element location)")
     args = parser.parse_args()
     _missing = [k for k in ("ATP_ADMIN_PASS", "ATP_SUPERADMIN_PASS") if not os.environ.get(k)]
     if _missing:
@@ -614,10 +615,10 @@ def main():
     reporter.generate_html()
 
 def run_stage(stage, ping_seconds=300, run_destructive=False, headed=False):
-    """以库形式调用单个测试阶段，不会自动读取 CLI 参数。
+    """Call a single test stage as a library, does not automatically read CLI arguments.
 
-    供外部程序 / CI / 定时任务导入 atp_engine 后直接调用。
-    示例:
+    For external programs / CI / scheduled tasks to import atp_engine and call directly.
+    Example:
         from atp_engine import run_stage
         run_stage("1", ping_seconds=10, run_destructive=False)
     """

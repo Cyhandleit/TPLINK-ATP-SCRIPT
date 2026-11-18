@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<title>TP-Link ATP 自动化测试平台</title>
+<title>TP-Link ATP Automation Test Platform</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 :root{
@@ -22,7 +22,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{font-size:14px}
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh;padding:16px}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh;padding:16px}
 .container{max-width:1200px;margin:0 auto}
 header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
 header h1{font-size:1.25rem;font-weight:700;color:var(--brand);letter-spacing:-0.01em}
@@ -143,40 +143,40 @@ header h1{font-size:1.25rem;font-weight:700;color:var(--brand);letter-spacing:-0
 <div class="container">
   <header>
     <div>
-      <h1>⚡ TP-Link ATP 自动化测试平台</h1>
-      <div class="subtitle">Web 配置 • 用例看板 • 运行进度 • 报告画廊</div>
+      <h1>⚡ TP-Link ATP Automation Test Platform</h1>
+      <div class="subtitle">Web Config • Test Case Board • Run Progress • Report Gallery</div>
     </div>
     <div class="header-actions">
-      <span id="busy" class="busy">执行中…</span>
-      <button class="btn ghost small" onclick="refresh()">刷新</button>
-      <button class="btn primary" onclick="saveConfig()">保存配置</button>
+      <span id="busy" class="busy">Running…</span>
+      <button class="btn ghost small" onclick="refresh()">Refresh</button>
+      <button class="btn primary" onclick="saveConfig()">Save Config</button>
     </div>
   </header>
 
-  <!-- 配置卡片 -->
+  <!-- Config card -->
   <div class="card">
-    <div class="card-header">⚙️ 测试配置</div>
+    <div class="card-header">⚙️ Test Config</div>
     <div class="card-body">
       <div class="grid grid-2">
         <div class="cfg-card">
-          <div class="cfg-title">🌐 网关设置 <span class="group-badge">gateway</span></div>
+          <div class="cfg-title">🌐 Gateway Settings <span class="group-badge">gateway</span></div>
           <div class="cfg-items" id="cfg-gateway"></div>
         </div>
         <div class="cfg-card">
-          <div class="cfg-title">🔑 登录凭证 <span class="group-badge">credentials</span></div>
+          <div class="cfg-title">🔑 Login Credentials <span class="group-badge">credentials</span></div>
           <div class="cfg-items" id="cfg-credentials"></div>
         </div>
         <div class="cfg-card">
-          <div class="cfg-title">📶 WiFi 设置 <span class="group-badge">wifi</span></div>
+          <div class="cfg-title">📶 WiFi Settings <span class="group-badge">wifi</span></div>
           <div class="cfg-items" id="cfg-wifi"></div>
         </div>
         <div class="cfg-card">
-          <div class="cfg-title">🧪 测试行为 <span class="group-badge">behavior</span></div>
+          <div class="cfg-title">🧪 Test Behavior <span class="group-badge">behavior</span></div>
           <div class="cfg-items" id="cfg-behavior"></div>
         </div>
       </div>
       <div class="runbar">
-        <button class="btn primary" onclick="runStage('all')">运行全部</button>
+        <button class="btn primary" onclick="runStage('all')">Run All</button>
         <div class="stage-pills">
           <button class="btn ghost" onclick="runStage('1')">Stage 1</button>
           <button class="btn ghost" onclick="runStage('2')">Stage 2</button>
@@ -184,30 +184,30 @@ header h1{font-size:1.25rem;font-weight:700;color:var(--brand);letter-spacing:-0
           <button class="btn ghost" onclick="runStage('4')">Stage 4</button>
           <button class="btn ghost" onclick="runStage('5')">Stage 5</button>
         </div>
-        <button class="btn ghost small" onclick="refresh()">刷新状态</button>
+        <button class="btn ghost small" onclick="refresh()">Refresh Status</button>
       </div>
       <div class="progress-wrap">
         <div class="progress"><div id="progress-bar" class="progress-bar"></div></div>
-        <div class="progress-text" id="progress-text">就绪</div>
+        <div class="progress-text" id="progress-text">Ready</div>
       </div>
     </div>
   </div>
 
-  <!-- 用例看板 -->
+  <!-- Test case board -->
   <div class="card">
-    <div class="card-header">📋 测试用例看板</div>
+    <div class="card-header">📋 Test Case Board</div>
     <div class="card-body">
       <table class="cases-table">
         <thead>
           <tr>
-            <th style="width:70px">用例</th>
-            <th>标题</th>
-            <th style="width:70px">阶段</th>
-            <th style="width:110px">状态</th>
-            <th style="width:260px">详情</th>
-            <th style="width:110px">耗时</th>
-            <th style="width:110px">截图</th>
-            <th style="width:150px">操作</th>
+            <th style="width:70px">Case</th>
+            <th>Title</th>
+            <th style="width:70px">Stage</th>
+            <th style="width:110px">Status</th>
+            <th style="width:260px">Details</th>
+            <th style="width:110px">Duration</th>
+            <th style="width:110px">Screenshots</th>
+            <th style="width:150px">Actions</th>
           </tr>
         </thead>
         <tbody id="tbl-body"></tbody>
@@ -215,11 +215,11 @@ header h1{font-size:1.25rem;font-weight:700;color:var(--brand);letter-spacing:-0
     </div>
   </div>
 
-  <!-- 报告画廊（模态） -->
+  <!-- Report gallery (modal) -->
   <div class="gallery-modal" id="gallery-modal">
     <div class="gallery-content">
       <div class="gallery-header">
-        <div class="gallery-title">📷 截图画廊</div>
+        <div class="gallery-title">📷 Screenshot Gallery</div>
         <button class="gallery-close" onclick="closeGallery()">&times;</button>
       </div>
       <div class="gallery-body" id="gallery-body"></div>
@@ -230,7 +230,7 @@ header h1{font-size:1.25rem;font-weight:700;color:var(--brand);letter-spacing:-0
 </div>
 
 <script>
-/* ---------- 用例本地元数据（与 atp_web.py CASES 对齐） ---------- */
+/* ---------- Test case local metadata (aligned with atp_web.py CASES) ---------- */
 const CASE_META = {
   "1.1":  {title:"Login Test (admin/superadmin)", stage:"1"},
   "2.1":  {title:"WAN Connectivity (PPPoE & IPv6)", stage:"1"},
@@ -268,16 +268,16 @@ let cfg = {};
 let pollTimer = null;
 let busy = false;
 
-/* ---------- 工具 ---------- */
+/* ---------- Utils ---------- */
 function toast(msg){
   const t=document.getElementById('toast');
   t.textContent=msg;
   t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'),2500);
 }
-function esc(s){return String(s===''||s==null?'':s).replace(/[&<>"']/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c]))}
+function esc(s){return String(s===''||s==null?'':s).replace(/[&<>\"']/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c]))}
 
-/* ---------- 加载与渲染 ---------- */
+/* ---------- Load & Render ---------- */
 async function load(){
   try{
     const r=await fetch('/api/state');
@@ -289,7 +289,7 @@ async function load(){
   }
 }
 function render(cases){
-  /* 配置项渲染 */
+  /* Render config items */
   Object.entries(GROUP_KEYS).forEach(([containerId,keys])=>{
     const el=document.getElementById(containerId);
     if(!el) return;
@@ -304,12 +304,12 @@ function render(cases){
         ?`<input type="checkbox" ${checked} onchange="cfg['${k}']=this.checked" />`
         :`<input type="${inputType}" value="${esc(masked)}" onchange="cfg['${k}']=this.value" ${isPassword?'autocomplete="new-password"':''} />`;
       const toggle=isPassword
-        ?`<button class="pwd-toggle" type="button" onclick="togglePwd(this,'${k}')" title="显示/隐藏">👁</button>`:'';
+        ?`<button class="pwd-toggle" type="button" onclick="togglePwd(this,'${k}')" title="Show/Hide">👁</button>`:'';
       return `<div class="cfg-item"><label>${esc(k)}</label>${inputHtml}${toggle}</div>`;
     }).join('');
   });
 
-  /* 用例表格 */
+  /* Case table */
   const tbody=document.getElementById('tbl-body');
   tbody.innerHTML='';
   const ids=Object.keys(cases).sort((a,b)=>{
@@ -329,18 +329,18 @@ function render(cases){
     for(const s of (c.screenshots||[])){
       imgs+=`<a href="${esc(s)}" target="_blank" rel="noopener"><img src="${esc(s)}" onerror="this.style.display='none'" alt=""></a>`;
     }
-    const galleryBtn = imgs?`<button class="btn icon small" onclick="openGallery('${esc(cid)}', [${(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')}])" title="查看截图">🖼</button>`:'';
+    const galleryBtn = imgs?`<button class="btn icon small" onclick="openGallery('${esc(cid)}', [${(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')}] )" title="View screenshots">🖼</button>`:'';
     let action='';
     if(status==='FAIL'){
-      action+=`<button class="btn small danger" onclick="runOne('${esc(cid)}')">重试</button>`;
+      action+=`<button class="btn small danger" onclick="runOne('${esc(cid)}')">Retry</button>`;
     }else if(status==='PENDING'||!status){
-      action+=`<button class="btn small ghost" onclick="runOne('${esc(cid)}')">运行</button>`;
+      action+=`<button class="btn small ghost" onclick="runOne('${esc(cid)}')">Run</button>`;
     }else if(status==='RUNNING'){
-      action+=`<span class="status RUNNING dot">进行中</span>`;
+      action+=`<span class="status RUNNING dot">Running</span>`;
     }else if(status==='PASS'){
-      action+=`<button class="btn small ghost" onclick="runOne('${esc(cid)}')">再跑</button>`;
+      action+=`<button class="btn small ghost" onclick="runOne('${esc(cid)}')">Run again</button>`;
     }else if(status==='SKIP'){
-      action+=`<span class="status SKIP dot">跳过</span>`;
+      action+=`<span class="status SKIP dot">Skipped</span>`;
     }
     action+=galleryBtn;
     tbody.innerHTML+=`<tr>
@@ -357,42 +357,42 @@ function render(cases){
   document.getElementById('busy').style.display = busy?'inline':'none';
   const pct = total?Math.round(((total-running)/total)*100):100;
   document.getElementById('progress-bar').style.width=pct+'%';
-  document.getElementById('progress-text').textContent = running?`${running}个用例执行中`:`全部完成（${pct}%）`;
+  document.getElementById('progress-text').textContent = running?`${running} cases running`:`All completed (${pct}%)`;
 }
 function statusMap(s){
-  const m={PASS:'通过',FAIL:'失败',PENDING:'待执行',RUNNING:'执行中',SKIP:'已跳过'};
+  const m={PASS:'Passed',FAIL:'Failed',PENDING:'Pending',RUNNING:'Running',SKIP:'Skipped'};
   return m[s]||s;
 }
 
-/* ---------- 操作 ---------- */
+/* ---------- Actions ---------- */
 async function runStage(stage){
-  if(busy){toast('已有测试在执行，请稍后');return;}
+  if(busy){toast('A test is already running, please wait');return;}
   const r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stage,config:cfg})});
   const d=await r.json();
-  if(!d.ok){toast(d.error||'提交失败');return;}
-  toast('已提交：Stage '+stage);
+  if(!d.ok){toast(d.error||'Submission failed');return;}
+  toast('Submitted: Stage '+stage);
   busy=true; poll();
 }
 async function runOne(cid){
-  if(busy){toast('已有测试在执行，请稍后');return;}
+  if(busy){toast('A test is already running, please wait');return;}
   const r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({case:cid,config:cfg})});
   const d=await r.json();
-  if(!d.ok){toast(d.error||'提交失败');return;}
-  toast('运行 '+cid);
+  if(!d.ok){toast(d.error||'Submission failed');return;}
+  toast('Run '+cid);
   busy=true; poll();
 }
 async function saveConfig(){
   await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
-  const b=document.createElement('span'); b.className='saved-badge'; b.textContent='已保存';
+  const b=document.createElement('span'); b.className='saved-badge'; b.textContent='Saved';
   const btn=document.querySelector('button[onclick="saveConfig()"]');
   btn.appendChild(b);
   setTimeout(()=>b.remove(),1500);
-  toast('配置已保存');
+  toast('Config saved');
 }
-async function refresh(){load();toast('已刷新');}
+async function refresh(){load();toast('Refreshed');}
 function poll(){setTimeout(load,2000);}
 
-/* ---------- 密码显隐 ---------- */
+/* ---------- Password toggle ---------- */
 function togglePwd(btn,key){
   const input=btn.parentElement.querySelector('input');
   if(input.type==='password'){
@@ -403,17 +403,17 @@ function togglePwd(btn,key){
   cfg[key]=input.value;
 }
 
-/* ---------- 画廊 ---------- */
+/* ---------- Gallery ---------- */
 function openGallery(cid, imgs){
   const modal=document.getElementById('gallery-modal');
   const body=document.getElementById('gallery-body');
   const meta=CASE_META[cid]||{title:cid};
   body.innerHTML=imgs.length? imgs.map((s,i)=>`
     <div class="gallery-item">
-      <img src="${esc(s)}" onerror="this.parentElement.innerHTML='<div style=padding:40px;color:#666>图片加载失败</div>'" alt="截图 ${i+1}">
-      <div class="gallery-caption">${cid} • ${meta.title} • 截图 ${i+1}/${imgs.length}</div>
+      <img src="${esc(s)}" onerror="this.parentElement.innerHTML='<div style=padding:40px;color:#666>Image failed to load</div>'" alt="Screenshot ${i+1}">
+      <div class="gallery-caption">${cid} • ${meta.title} • Screenshot ${i+1}/${imgs.length}</div>
     </div>
-  `).join(''):`<div class="gallery-empty">暂无截图</div>`;
+  `).join(''):`<div class="gallery-empty">No screenshots yet</div>`;
   modal.classList.add('open');
 }
 function closeGallery(){
@@ -423,7 +423,7 @@ document.getElementById('gallery-modal').addEventListener('click',e=>{
   if(e.target===document.getElementById('gallery-modal')) closeGallery();
 });
 
-/* ---------- 启动 ---------- */
+/* ---------- Boot ---------- */
 load();
 setInterval(poll,3000);
 </script>

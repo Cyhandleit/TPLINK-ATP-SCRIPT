@@ -1,23 +1,23 @@
-# TP-Link ATP — docker-compose (bridge 模式，macOS / Windows)
+# TP-Link ATP — docker-compose (bridge mode, macOS / Windows)
 #
-# 与基础文件合并使用（在包含 docker-compose.yml 的同一目录下执行）：
+# Used merged with base file (execute in the same directory containing docker-compose.yml):
 #   docker compose -f docker-compose.yml -f docker-compose.bridge.yml up --build -d
 #
-# bridge 模式下容器不再使用宿主机网络栈（network_mode: bridge 覆盖基础文件的 host）：
-#   - Web UI 通过端口映射访问：http://localhost:5000
-#   - extra_hosts 将 host.docker.internal 解析为宿主机网关（host-gateway），方便容器访问运行在宿主机上的服务
-#   - 访问路由器（默认 192.168.1.1）依赖 Docker Desktop 的局域网路由，请先确保宿主机能 ping 通路由器
-#   - ATP_LAN_IFACE / ATP_WIFI_IFACE / ATP_EXT_NIC_IP 在 macOS / Windows 上通常不适用，
-#     可保留默认值；网关 IP 与登录凭证建议留空环境变量，通过 Web UI 配置并保存
+# Under bridge mode containers no longer use host network stack (network_mode: bridge overrides base file's host):
+#   - Web UI accessed via port mapping: http://localhost:5000
+#   - extra_hosts resolves host.docker.internal to host gateway (host-gateway), making it easy for container to access services running on host
+#   - Accessing router (default 192.168.1.1) depends on Docker Desktop LAN routing, please ensure host can ping router first
+#   - ATP_LAN_IFACE / ATP_WIFI_IFACE / ATP_EXT_NIC_IP usually not applicable on macOS / Windows,
+#     keep default values; gateway IP and login credentials suggested to leave env vars empty, configure and save via Web UI
 #
-# HEALTHCHECK 继承 docker-compose.yml：容器内 curl http://127.0.0.1:5000/（bridge 模式下
-# 容器内 127.0.0.1 依然可达容器自身的 Flask 端口）。
+# HEALTHCHECK inherits docker-compose.yml: container curls http://127.0.0.1:5000/ (under bridge mode
+# 127.0.0.1 inside container can still reach container's own Flask port).
 
 services:
   atp-web:
     network_mode: bridge
     ports:
-      # 宿主机访问容器内 Flask：http://localhost:5000
+      # Host accesses Flask inside container: http://localhost:5000
       - "5000:5000"
     extra_hosts:
       - "host.docker.internal:host-gateway"

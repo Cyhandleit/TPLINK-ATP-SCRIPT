@@ -1,136 +1,136 @@
 # TP-Link ATP Automation Script
 
-TP-Link 路由器 ATP（Auto Test Plan）自动化测试脚本，核心是 Web UI 测试平台 (`atp_web.py`)，用于对 TP-Link 路由器固件进行自动化功能、连通性、吞吐量及远程管理测试。`atp_engine.py` 保留作为本地开发调试用的 CLI 引擎；Docker 部署仅交付 `atp-web` 单服务，所有测试阶段均通过 Web UI 触发运行，无需单独的 `atp-engine` 容器。
+TP-Link router ATP (Auto Test Plan) automation test script, core is Web UI test platform (`atp_web.py`), used for automated functional, connectivity, throughput, and remote management testing of TP-Link router firmware. `atp_engine.py` is kept as CLI engine for local development debugging; Docker deployment delivers only the `atp-web` single service, all test stages are triggered via Web UI, no separate `atp-engine` container needed.
 
-## 目录结构
+## Directory Structure
 
 ```
 TPLINK-ATP-SCRIPT/
-├── atp_engine.py          # CLI 自动化测试执行引擎（Playwright + Requests），本地开发调试用
-├── atp_web.py             # Flask Web UI 测试平台（配置、看板、逐用例运行），Docker 单服务入口
-├── ci.yml                 # GitHub Actions CI（lint + 安全扫描 + Web API 冒烟测试）
-├── requirements.txt       # Python 依赖
-├── known_issues.md        # 已知问题与计划修改
+├── atp_engine.py          # CLI automation test execution engine (Playwright + Requests), for local development debugging
+├── atp_web.py             # Flask Web UI test platform (configuration, dashboard, per-case execution), Docker single service entry
+├── ci.yml                 # GitHub Actions CI (lint + security scan + Web API smoke test)
+├── requirements.txt       # Python dependencies
+├── known_issues.md        # Known issues and planned changes
 ├── .gitignore
-└── reports/               # 测试报告与截图输出目录（gitignored）
+└── reports/               # Test report and screenshot output directory (gitignored)
 ```
 
-## 快速开始
+## Quick Start
 
-### 1. 克隆仓库
+### 1. Clone Repository
 
 ```bash
 git clone git@github.com:Cyhandleit/TPLINK-ATP-SCRIPT.git
 cd TPLINK-ATP-SCRIPT
 ```
 
-### 2. 安装依赖
+### 2. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 playwright install chromium
 ```
 
-### 3. 配置环境变量
+### 3. Configure Environment Variables
 
-所有敏感信息（路由器密码、ACS 账号等）均通过环境变量注入，不要直接写在代码中。可参考以下示例创建 `.env` 文件：
+All sensitive information (router password, ACS account, etc.) is injected via environment variables, do not write directly into code. You can refer to the following example to create `.env` file:
 
 ```bash
-cp .env.example .env   # 如已提供 .env.example
-# 然后编辑 .env 填入你的真实值
+cp .env.example .env   # if .env.example is provided
+# then edit .env to fill in your real values
 ```
 
-常用环境变量：
+Common environment variables:
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `ATP_GATEWAY_SCHEME` | `http` | 网关访问协议 |
-| `ATP_GATEWAY_IP` | `192.168.1.1` | 路由器网关 IP |
-| `ATP_ADMIN_USER` | `admin` | 普通管理员账号 |
-| `ATP_ADMIN_PASS` | 无默认值 | 普通管理员密码；建议留空，通过 Web UI 配置页填写（**请修改**） |
-| `ATP_SUPERADMIN_USER` | `superadmin` | 超级管理员账号 |
-| `ATP_SUPERADMIN_PASS` | 无默认值 | 超级管理员密码；建议留空，通过 Web UI 配置页填写（**请修改**） |
-| `ATP_LAN_IFACE` | `Ethernet` | 有线网卡名称（Windows） |
-| `ATP_WIFI_IFACE` | `Wi-Fi` | 无线网卡名称 |
-| `ATP_EXT_NIC_IP` | `192.168.43.100` | 外网副网卡 IP |
-| `ATP_DDNS_USER` | `your_noip_user` | No-IP 账号 |
-| `ATP_DDNS_PASS` | `your_noip_key` | No-IP 密钥 |
-| `ATP_TAUC_USER` | `tauc_tester@example.com` | TAUC 账号 |
-| `ATP_TAUC_PASS` | 无默认值 | TAUC 密码；建议留空，通过 Web UI 配置页填写（**请修改**） |
+| Variable | Default Value | Description |
+|----------|--------------|-------------|
+| `ATP_GATEWAY_SCHEME` | `http` | Gateway access protocol |
+| `ATP_GATEWAY_IP` | `192.168.1.1` | Router gateway IP |
+| `ATP_ADMIN_USER` | `admin` | Regular administrator account |
+| `ATP_ADMIN_PASS` | none | Regular administrator password; recommended to leave blank, fill via Web UI configuration page (**please change**) |
+| `ATP_SUPERADMIN_USER` | `superadmin` | Super administrator account |
+| `ATP_SUPERADMIN_PASS` | none | Super administrator password; recommended to leave blank, fill via Web UI configuration page (**please change**) |
+| `ATP_LAN_IFACE` | `Ethernet` | Wired network card name (Windows) |
+| `ATP_WIFI_IFACE` | `Wi-Fi` | Wireless network card name |
+| `ATP_EXT_NIC_IP` | `192.168.43.100` | External secondary NIC IP |
+| `ATP_DDNS_USER` | `your_noip_user` | No-IP account |
+| `ATP_DDNS_PASS` | `your_noip_key` | No-IP key |
+| `ATP_TAUC_USER` | `tauc_tester@example.com` | TAUC account |
+| `ATP_TAUC_PASS` | none | TAUC password; recommended to leave blank, fill via Web UI configuration page (**please change**) |
 
-### 4. 运行 Web UI
+### 4. Run Web UI
 
-Docker 部署仅交付 `atp-web` 单服务，所有测试（stage 1~5 及 all）均通过 Web UI 触发：
+Docker deployment delivers only `atp-web` single service, all tests (stage 1~5 and all) are triggered via Web UI:
 
 ```bash
-# 前台运行（本地开发）
+# Run in foreground (local development)
 python atp_web.py
 ```
 
-然后在浏览器打开 `http://<本机IP>:5000` 即可访问测试看板，支持保存配置、运行单个用例或整个阶段、查看历史截图。
+Then open `http://<local IP>:5000` in browser to access the test dashboard, supports saving configuration, running single case or entire stage, viewing historical screenshots.
 
-> `atp_engine.py` 仍可在本地直接运行用于调试（如 `python atp_engine.py --stage 1`），但它不再作为独立容器交付；Docker 里请统一通过 `atp-web` 的 Web API `/api/run` 执行测试。
+> `atp_engine.py` can still be run locally directly for debugging (e.g. `python atp_engine.py --stage 1`), but it is no longer delivered as standalone container; in Docker please unify test execution through `atp-web` Web API `/api/run`.
 
-> ⚠️ 注意：生产环境请勿直接使用 Flask 自带调试服务器，建议通过 Gunicorn/uWSGI 部署并关闭 `debug` 模式。
+> ⚠️ Note: In production environment, do not use Flask built-in debug server directly, recommend deploying via Gunicorn/uWSGI and closing `debug` mode.
 
-## Docker 部署
+## Docker Deployment
 
-### Linux 宿主机（推荐）：network_mode: host
+### Linux Host (Recommended): network_mode: host
 
 ```bash
 docker compose up -d --build atp-web
 ```
 
-- `atp-web` Flask 监听 `0.0.0.0:5000`，`network_mode: host` 下宿主机直连 `http://localhost:5000`，无需端口映射。
-- 测试报告与截图持久化到宿主机 `./reports`；可选 `./config.json` 以只读方式挂载，覆盖默认配置。
-- `atp-web` 已配置 `HEALTHCHECK`（每 30 秒 `curl http://127.0.0.1:5000/`），可通过 `docker compose ps` 查看容器健康状态。
-- 在浏览器打开 `http://localhost:5000`，进入配置页填写凭证后，即可在看板上运行任一阶段（stage 1~5）或 `all`，无需额外容器。
+- `atp-web` Flask listens on `0.0.0.0:5000`, under `network_mode: host` host can directly connect `http://localhost:5000`, no port mapping needed.
+- Test reports and screenshots are persisted to host `./reports`; optional `./config.json` can be mounted read-only to override default configuration.
+- `atp-web` has configured `HEALTHCHECK` (`curl http://127.0.0.1:5000/` every 30 seconds), container health status can be viewed via `docker compose ps`.
+- Open `http://localhost:5000` in browser, enter configuration page to fill in credentials, then you can run any stage (stage 1~5) or `all` on the dashboard, no extra container needed.
 
-### macOS / Windows：bridge 模式
+### macOS / Windows: bridge mode
 
-macOS / Windows 上 `network_mode: host` 不可用，请改用 bridge 网络：
+`network_mode: host` is unavailable on macOS / Windows, please use bridge network instead:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.bridge.yml up -d --build atp-web
 ```
 
-- `docker-compose.bridge.yml` 将 `atp-web` 切至 `network_mode: bridge`，通过 `ports: ["5000:5000"]` 暴露 Web UI，访问地址为 `http://localhost:5000`。
-- `extra_hosts` 将 `host.docker.internal` 指向 `host-gateway`（宿主机网关），方便容器访问宿主机上的服务。
-- 访问路由器（默认 `192.168.1.1`）依赖 Docker Desktop 的局域网路由，**请先确保宿主机能 `ping` 通路由器**。
-- `ATP_LAN_IFACE` / `ATP_WIFI_IFACE` / `ATP_EXT_NIC_IP` 在 macOS / Windows 上通常不适用，可保留默认值；网关 IP 与登录凭证建议留空环境变量，通过 Web UI 配置并保存（见下文“配置凭证”）。
+- `docker-compose.bridge.yml` switches `atp-web` to `network_mode: bridge`, exposes Web UI via `ports: ["5000:5000"]`, access address is `http://localhost:5000`.
+- `extra_hosts` points `host.docker.internal` to `host-gateway` (host gateway), making it easy for container to access services on host.
+- Accessing router (default `192.168.1.1`) depends on Docker Desktop's LAN routing, **please ensure host can `ping` router first**.
+- `ATP_LAN_IFACE` / `ATP_WIFI_IFACE` / `ATP_EXT_NIC_IP` usually do not apply on macOS / Windows, can keep default values; gateway IP and login credentials are recommended to be left as empty environment variables, configured and saved via Web UI (see "Configure Credentials" below).
 
-## 配置凭证（通过 Web UI 填写）
+## Configure Credentials (Fill via Web UI)
 
-环境变量仅提供默认值，**敏感凭证建议不要写在 `.env` 或 docker-compose 中**。推荐做法：
+Environment variables only provide default values, **sensitive credentials are recommended not to be written in `.env` or docker-compose**. Recommended practice:
 
-1. `ATP_ADMIN_PASS` / `ATP_SUPERADMIN_PASS` 等敏感项留空（或不在 `.env` 中定义）。
-2. 启动容器后，在浏览器打开 `http://localhost:5000`，进入配置页填写路由器网关 IP、协议、管理员/超级管理员登录凭证。
-3. 保存后凭证写入 `./config.json`（容器内 `/app/config.json`），环境变量仅作为默认值，Web UI 配置优先级更高。
+1. Leave sensitive items such as `ATP_ADMIN_PASS` / `ATP_SUPERADMIN_PASS` blank (or not defined in `.env`).
+2. After starting container, open `http://localhost:5000` in browser, enter configuration page to fill in router gateway IP, protocol, administrator / super administrator login credentials.
+3. After saving, credentials are written to `./config.json` (`/app/config.json` inside container), environment variables only serve as default values, Web UI configuration has higher priority.
 
-> ⚠️ 注意：`docker-compose.yml` 中 `./config.json:/app/config.json:ro` 为**只读**挂载，Web UI 保存配置会失败。如需通过 Web UI 持久化配置，请去掉 `:ro`，改为可读写挂载，或确保宿主机上的 `config.json` 可写。
+> ⚠️ Note: In `docker-compose.yml`, `./config.json:/app/config.json:ro` is **read-only** mount, Web UI saving configuration will fail. If you need to persist configuration via Web UI, please remove `:ro` and change to read-write mount, or ensure `config.json` on host is writable.
 
 ## CI
 
-推送代码到 `main` 分支或提交 PR 会自动触发 GitHub Actions，运行：
-- Python 语法检查 (`py_compile`)
-- 代码风格检查 (`flake8`)
-- 安全漏洞扫描 (`bandit`)
+Pushing code to `main` branch or submitting PR will automatically trigger GitHub Actions, running:
+- Python syntax check (`py_compile`)
+- Code style check (`flake8`)
+- Security vulnerability scan (`bandit`)
 
-## 已知问题
+## Known Issues
 
-详见 [`known_issues.md`](known_issues.md)。
+See [`known_issues.md`](known_issues.md).
 
-## P1 部署进度
+## P1 Deployment Progress
 
-| 项目 | 内容 | 状态 |
-|------|------|------|
-| HEALTHCHECK | `atp-web` 每 30s `curl http://127.0.0.1:5000/`，`docker compose ps` 可见健康状态 | ✅ 已完成 |
-| Dockerfile | 加入 `curl`（`--no-install-recommends`，保持轻量），供 HEALTHCHECK 与排障使用 | ✅ 已完成 |
-| docker-compose.bridge.yml | macOS / Windows bridge 网络 + `host.docker.internal:host-gateway`，端口映射 5000 | ✅ 已完成 |
-| README.md | 补充 Docker 部署、bridge 模式步骤、P1 进度、Web UI 凭证配置说明 | ✅ 已完成 |
+| Project | Content | Status |
+|---------|---------|--------|
+| HEALTHCHECK | `atp-web` `curl http://127.0.0.1:5000/` every 30s, health status visible via `docker compose ps` | ✅ Completed |
+| Dockerfile | Added `curl` (`--no-install-recommends`, keep lightweight), for HEALTHCHECK and troubleshooting | ✅ Completed |
+| docker-compose.bridge.yml | macOS / Windows bridge network + `host.docker.internal:host-gateway`, port mapping 5000 | ✅ Completed |
+| README.md | Added Docker deployment, bridge mode steps, P1 progress, Web UI credential configuration instructions | ✅ Completed |
 
-后续 P2 预计：CI 构建镜像、多架构支持。
+Subsequent P2 expected: CI image building, multi-architecture support.
 
-## 贡献
+## Contributing
 
-发现问题或有改进建议，欢迎提交 Issue 或 Pull Request。
+If you find problems or have improvement suggestions, welcome to submit Issue or Pull Request.

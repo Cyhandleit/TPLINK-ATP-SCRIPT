@@ -1,24 +1,24 @@
-# TP-Link ATP 自动化测试 — Docker 化基础镜像
-# 基于微软官方 Playwright Python 镜像，内置 Chromium 及系统依赖
+# TP-Link ATP automated testing — Dockerized base image
+# Based on Microsoft official Playwright Python image, built-in Chromium and system dependencies
 FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
 
 WORKDIR /app
 
-# 锁定 Python 依赖，保证构建可复现
+# Lock Python dependencies, ensure build reproducibility
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
     playwright install chromium && \
     playwright install-deps chromium
 
-# curl：供 HEALTHCHECK（http://127.0.0.1:5000/）与容器内排障使用，仅装单一包，保持轻量
+# curl: for HEALTHCHECK (http://127.0.0.1:5000/) and container troubleshooting, install single package only, keep lightweight
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# 应用代码
+# Application code
 COPY atp_engine.py atp_web.py known_issues.md ./
 
-# 生产默认关闭 Flask 调试（修复 SEC-03），可通过 ATP_DEBUG=1 开启
+# Flask debug off by default in production (fixes SEC-03), can enable via ATP_DEBUG=1
 RUN sed -i 's/debug=True/debug=False/' atp_web.py
 
 COPY entrypoint.sh /entrypoint.sh
@@ -28,5 +28,5 @@ ENV PYTHONUNBUFFERED=1 \
     ATP_DEBUG=0
 
 ENTRYPOINT ["/entrypoint.sh"]
-# 默认启动 Web UI；单服务镜像，容器内即可通过 Web API /api/run 执行全部阶段
+# Default starts Web UI; single-service image, all stages can be executed via Web API /api/run inside container
 CMD ["python", "atp_web.py"]
