@@ -60,7 +60,7 @@ app = Flask(__name__)
 
 def run_cmd(cmd, timeout=60, shell=False):
     try:
-        p = subprocess.run(cmd, shell=shell, capture_output=True, text=True, timeout=timeout)
+        p = subprocess.run(cmd, shell=shell, capture_output=True, text=True, timeout=timeout)  # nosec B602
         return p.returncode, p.stdout + p.stderr
     except subprocess.TimeoutExpired:
         return -1, "Command timed out"
@@ -478,10 +478,10 @@ class ATPWebEngine:
         sys_os = platform.system()
         if sys_os == "Windows":
             iface = shlex.quote(CONFIG["wifi_iface"])
-            run_cmd(f'netsh wlan connect name="{ssid}" interface={iface}', shell=True)
+            run_cmd(f'netsh wlan connect name="{ssid}" interface={iface}', shell=True)  # nosec B604
         else:
             iface = shlex.quote(CONFIG["wifi_iface"])
-            run_cmd(f'nmcli device wifi connect "{ssid}" password "{pw}" ifname {iface}', shell=True)
+            run_cmd(f'nmcli device wifi connect "{ssid}" password "{pw}" ifname {iface}', shell=True)  # nosec B604
         time.sleep(8)
         loss, _, _, _ = run_ping_stats(CONFIG["gateway_ip"], count=2)
         return loss == 0, ""

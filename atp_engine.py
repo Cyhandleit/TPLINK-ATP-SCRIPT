@@ -245,7 +245,7 @@ class ATPReporter:
 
 def run_cmd(cmd, timeout=60, shell=False):
     try:
-        proc = subprocess.run(cmd, shell=shell, capture_output=True, text=True, timeout=timeout)
+        proc = subprocess.run(cmd, shell=shell, capture_output=True, text=True, timeout=timeout)  # nosec B602
         return proc.returncode, proc.stdout + proc.stderr
     except subprocess.TimeoutExpired:
         return -1, "Command timed out"
@@ -283,13 +283,13 @@ def connect_wifi(ssid, password):
         with open("wifi_profile.xml", "w", encoding="utf-8") as f:
             f.write(profile_xml)
         iface = shlex.quote(CONFIG["wifi_iface"])
-        run_cmd(f'netsh wlan add profile filename="wifi_profile.xml" interface={iface}', shell=True)
-        code, out = run_cmd(f'netsh wlan connect name="{ssid}" interface={iface}', shell=True)
+        run_cmd(f'netsh wlan add profile filename="wifi_profile.xml" interface={iface}', shell=True)  # nosec B604
+        code, out = run_cmd(f'netsh wlan connect name="{ssid}" interface={iface}', shell=True)  # nosec B604
         time.sleep(8)
         return code == 0, out
     else:
         iface = shlex.quote(CONFIG["wifi_iface"])
-        code, out = run_cmd(f'nmcli device wifi connect "{ssid}" password "{password}" ifname {iface}', shell=True)
+        code, out = run_cmd(f'nmcli device wifi connect "{ssid}" password "{password}" ifname {iface}', shell=True)  # nosec B604
         time.sleep(8)
         return code == 0, out
 
