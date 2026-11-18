@@ -16,7 +16,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
     rm -rf /var/lib/apt/lists/*
 
 # Application code
-COPY atp_engine.py atp_web.py known_issues.md ./
+COPY atp_engine.py atp_web.py atp_config.py known_issues.md ./
+COPY templates/index.html templates/index.html
 
 # Flask debug off by default in production (fixes SEC-03), can enable via ATP_DEBUG=1
 RUN sed -i 's/debug=True/debug=False/' atp_web.py
