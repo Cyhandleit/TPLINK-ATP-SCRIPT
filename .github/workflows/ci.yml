@@ -65,13 +65,31 @@ jobs:
         run: |
           docker build -t atp-project:test .
 
-      - name: Run smoke test (stage 1, short ping)
+      - name: Run smoke test via Web API (stage 1)
         run: |
-          docker run --rm \
+          docker run -d --name atp-smoke \
             --network host \
             -e ATP_GATEWAY_IP=127.0.0.1 \
             -e ATP_ADMIN_PASS=testpass \
             -e ATP_SUPERADMIN_PASS=testpass \
+            -e ATP_HEADED=false \
             -v "$(pwd)/reports:/app/reports" \
-            atp-project:test \
-            python atp_engine.py --stage 1 --ping-seconds 10 || true
+            atp-project:test >/dev/null
+          # 等待 Flask 就绪（最多 60 秒）
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 2 http://127.0.0.1:5000/ >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          # 通过 Web API 触发 stage 1 冒烟测试
+          curl -fsS -X POST http://127.0.0.1:5000/api/run \
+            -H "Content-Type: application/json" -d '{"stage":"1"}' >/dev/null || true
+          # 轮询 /api/state，直至 stage 1 的 5 个用例全部出结果（最多等 2 分钟）
+          for i in $(seq 1 60); do
+            done=$(curl -s http://127.0.0.1:5000/api/state 2>/dev/null \
+              | python -c "import sys,json; print(sum(1 for c in json.load(sys.stdin)['cases'].values() if c.get('status') in ('PASS','FAIL','SKIP')))")
+            if [ "$done" -ge 5 ]; then break; fi
+            sleep 2
+          done
+          echo "=== atp-smoke container logs ==="
+          docker logs atp-smoke 2>&1 || true
+          docker rm -f atp-smoke >/dev/null 2>&1 || true

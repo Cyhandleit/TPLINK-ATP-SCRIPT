@@ -28,5 +28,5 @@ ENV PYTHONUNBUFFERED=1 \
     ATP_DEBUG=0
 
 ENTRYPOINT ["/entrypoint.sh"]
-# 默认启动 Web UI；CLI 引擎可通过 `docker compose run atp-engine ...` 覆盖 command
+# 默认启动 Web UI；单服务镜像，容器内即可通过 Web API /api/run 执行全部阶段
 CMD ["python", "atp_web.py"]

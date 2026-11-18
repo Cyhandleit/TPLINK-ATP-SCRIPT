@@ -21,8 +21,3 @@ services:
       - "5000:5000"
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
-  atp-engine:
-    network_mode: bridge
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
