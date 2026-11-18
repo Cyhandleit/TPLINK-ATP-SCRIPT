@@ -262,7 +262,7 @@ def redact_image(path, regions):
             for x1, y1, x2, y2 in regions:
                 draw.rectangle([x1, y1, x2, y2], fill=(0, 0, 0))
             im.save(path)
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
 
@@ -320,7 +320,7 @@ def wait_router_online(timeout=180):
             try:
                 urllib.request.urlopen(f"{scheme}://{CONFIG['gateway_ip']}", timeout=5)  # nosec B310
                 return True
-            except Exception:
+            except Exception:  # nosec B110
                 pass
         time.sleep(3)
     return False

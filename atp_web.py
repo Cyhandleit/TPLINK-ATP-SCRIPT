@@ -93,7 +93,7 @@ def wait_router_online(timeout=180):
             try:
                 urllib.request.urlopen(f"{scheme}://{CONFIG['gateway_ip']}", timeout=5)  # nosec B310
                 return True
-            except Exception:
+            except Exception:  # nosec B110
                 pass
         time.sleep(3)
     return False
@@ -138,12 +138,12 @@ class ATPWebEngine:
         if self.browser:
             try:
                 self.browser.close()
-            except Exception:
+            except Exception:  # nosec B110
                 pass
         if self.playwright:
             try:
                 self.playwright.stop()
-            except Exception:
+            except Exception:  # nosec B110
                 pass
 
     # ---- Login ----

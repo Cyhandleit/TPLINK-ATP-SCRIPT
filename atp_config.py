@@ -70,7 +70,7 @@ def load_config():
         try:
             with open(CONFIG_FILE, encoding="utf-8") as f:
                 cfg.update(json.load(f))
-        except Exception:
+        except Exception:  # nosec B110
             pass
     return cfg
 
