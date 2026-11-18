@@ -450,8 +450,6 @@ class ATPWebEngine:
             return ("SKIP", f"Case not implemented: {case_id}", [], "\n".join(logs))
         except Exception as e:
             return ("FAIL", str(e), [], "\n".join(logs))
-        finally:
-            pass
 
     # ---- Internal helpers ----
     def _snap(self, name, page=None):
@@ -467,9 +465,8 @@ class ATPWebEngine:
         d = os.path.join(REPORT_ROOT, datetime.now().strftime("%Y%m%d_%H%M%S"))
         os.makedirs(d, exist_ok=True)
         path = os.path.join(d, name)
-        safe_cmd = out if False else cmd
         html_c = f"""<html><body style="background:#1e1e1e;color:#d4d4d4;font-family:Consolas,monospace;padding:20px;">
-        <div style="color:#569cd6;margin-bottom:8px;">$ {safe_cmd}</div>
+        <div style="color:#569cd6;margin-bottom:8px;">$ {cmd}</div>
         <pre style="white-space:pre-wrap;">{out[-4000:]}</pre></body></html>"""
         self.term_page.set_content(html_c)
         self._last_snap_page = self.term_page
@@ -693,7 +690,6 @@ def api_run():
                 save_config(CONFIG)
             except Exception as e:  # Persistence failure does not block this run, only takes effect in memory
                 print(f"[api/run] Failed to save config.json: {e}")
-            try:
                 if case:
                     run_case_async(case)
                 elif stage == "all":
@@ -701,8 +697,6 @@ def api_run():
                         run_case_async(cid)
                 else:
                     run_stage_async(stage)
-            finally:
-                pass  # Config persisted, retained for subsequent tests
         finally:
             exec_lock.release()
 
