@@ -8,9 +8,7 @@ Coverage: 1.1, 1.3, 2.1-2.5, 3.1-3.7, 4.1-4.9, 4.12, 4.15, 6.1, 7.2-7.4, 9.1-9.6
 
 import os
 import re
-import sys
 import time
-import json
 import html
 import shlex
 import argparse
@@ -18,13 +16,13 @@ import platform
 import threading
 import subprocess
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime
 from http.server import SimpleHTTPRequestHandler
 from socketserver import TCPServer
 
 import requests
 from requests.adapters import HTTPAdapter
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+from playwright.sync_api import sync_playwright
 
 __all__ = [
     "CONFIG",
@@ -68,8 +66,8 @@ CONFIG = {
     "wifi_iface": _env("ATP_WIFI_IFACE", "Wi-Fi"),
     "ext_nic_ip": _env("ATP_EXT_NIC_IP", "192.168.43.100"),
     "wifi_24g": {"ssid": _env("ATP_WIFI_24G_SSID", "TP_Link_Test_2G"), "pass": _env("ATP_WIFI_24G_PASS", "")},
-    "wifi_5g":  {"ssid": _env("ATP_WIFI_5G_SSID", "TP_Link_Test_5G"),  "pass": _env("ATP_WIFI_5G_PASS",  "")},
-    "wifi_6g":  {"ssid": _env("ATP_WIFI_6G_SSID", "TP_Link_Test_6G"),  "pass": _env("ATP_WIFI_6G_PASS",  "")},
+    "wifi_5g": {"ssid": _env("ATP_WIFI_5G_SSID", "TP_Link_Test_5G"), "pass": _env("ATP_WIFI_5G_PASS", "")},
+    "wifi_6g": {"ssid": _env("ATP_WIFI_6G_SSID", "TP_Link_Test_6G"), "pass": _env("ATP_WIFI_6G_PASS", "")},
     "wifi_guest": {"ssid": _env("ATP_WIFI_GUEST_SSID", "TP_Link_Guest"), "pass": _env("ATP_WIFI_GUEST_PASS", "")},
     "wifi_mlo": {"ssid": _env("ATP_WIFI_MLO_SSID", "TP_Link_MLO"), "pass": _env("ATP_WIFI_MLO_PASS", "")},
     "iperf3_server_ip": "192.168.1.100",
@@ -85,7 +83,9 @@ CONFIG = {
     "tauc_user": _env("ATP_TAUC_USER", "tauc_tester@example.com"),
     "tauc_pass": _env("ATP_TAUC_PASS", "TaucPass123!"),
     "device_sn": "2245123456789",
-    # Black out sensitive regions in screenshots: {screenshot filename fragment: [(x1,y1,x2,y2), ...]}, fill in coordinates based on actual firmware model
+    # Black out sensitive regions in screenshots: {screenshot filename
+    # fragment: [(x1,y1,x2,y2), ...]}, fill in coordinates based on actual
+    # firmware model
     "sensitive_regions": {},
 }
 
@@ -117,14 +117,17 @@ UI_SELECTORS = {
     "btn_reboot": "#top-reboot, button:has-text('Reboot')",
 }
 
+
 class SourceAddressAdapter(HTTPAdapter):
     def __init__(self, source_ip, **kwargs):
         self.source_ip = source_ip
         super().__init__(**kwargs)
+
     def init_poolmanager(self, *args, **kwargs):
         if self.source_ip:
             kwargs["source_address"] = (self.source_ip, 0)
         return super().init_poolmanager(*args, **kwargs)
+
 
 def get_external_session():
     session = requests.Session()
@@ -134,18 +137,22 @@ def get_external_session():
         session.mount("https://", adapter)
     return session
 
+
 class LocalHTTPServer:
     def __init__(self, port=30000):
         self.port = port
         self.httpd = None
         self.thread = None
+
     def start(self):
         os.makedirs("temp_www", exist_ok=True)
         with open("temp_www/index.html", "w", encoding="utf-8") as f:
             f.write("<html><body><h1>TP-Link ATP Port Forwarding OK</h1></body></html>")
+
         class Handler(SimpleHTTPRequestHandler):
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, directory="temp_www", **kwargs)
+
             def log_message(self, format, *args):
                 pass
         TCPServer.allow_reuse_address = True
@@ -153,10 +160,12 @@ class LocalHTTPServer:
         self.httpd = TCPServer((bind_host, self.port), Handler)
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self.thread.start()
+
     def stop(self):
         if self.httpd:
             self.httpd.shutdown()
             self.httpd.server_close()
+
 
 class ATPReporter:
     def __init__(self):
@@ -164,8 +173,10 @@ class ATPReporter:
         self.out_dir = os.path.join("reports", f"ATP_{timestamp}")
         os.makedirs(self.out_dir, exist_ok=True)
         self.results = []
+
     def img_path(self, filename):
         return os.path.join(self.out_dir, filename)
+
     def render_terminal_screenshot(self, page, command, output_text, filename):
         safe_cmd = html.escape(command)
         safe_out = html.escape(output_text[-4000:])
@@ -178,6 +189,7 @@ class ATPReporter:
         """
         page.set_content(html_content)
         page.screenshot(path=self.img_path(filename), full_page=True)
+
     def record(self, case_id, title, status, detail="", screenshots=None):
         entry = {
             "id": case_id,
@@ -190,6 +202,7 @@ class ATPReporter:
         self.results.append(entry)
         color = "\033[92m" if status == "PASS" else ("\033[91m" if status == "FAIL" else "\033[93m")
         print(f"{color}[{status}]\033[0m {case_id} - {title} | {detail}")
+
     def generate_html(self):
         rows = ""
         for r in self.results:
@@ -227,12 +240,14 @@ class ATPReporter:
             f.write(report_html)
         print(f"\n>>> Test complete! Summary report and all screenshots saved to directory: {self.out_dir}")
 
+
 def run_cmd(cmd, timeout=60, shell=False):
     try:
         proc = subprocess.run(cmd, shell=shell, capture_output=True, text=True, timeout=timeout)
         return proc.returncode, proc.stdout + proc.stderr
     except subprocess.TimeoutExpired:
         return -1, "Command timed out"
+
 
 def redact_image(path, regions):
     try:
@@ -247,6 +262,7 @@ def redact_image(path, regions):
             im.save(path)
     except Exception:
         pass
+
 
 def connect_wifi(ssid, password):
     sys_os = platform.system()
@@ -275,6 +291,7 @@ def connect_wifi(ssid, password):
         time.sleep(8)
         return code == 0, out
 
+
 def run_ping_stats(target, count=10, ipv6=False):
     is_win = platform.system() == "Windows"
     flag_v6 = ["-6"] if ipv6 else ["-4"]
@@ -289,6 +306,7 @@ def run_ping_stats(target, count=10, ipv6=False):
         avg_match = re.search(r"min/avg/max/[^=]+=\s*[\d.]+/([\d.]+)/", out)
     avg_ms = float(avg_match.group(1)) if avg_match else 999.0
     return loss_pct, avg_ms, cmd, out
+
 
 def wait_router_online(timeout=180):
     start = time.time()
@@ -305,11 +323,13 @@ def wait_router_online(timeout=180):
         time.sleep(3)
     return False
 
+
 class RouterWebController:
     def __init__(self, page, reporter):
         self.page = page
         self.rep = reporter
         self.base_url = f"{CONFIG['gateway_scheme']}://{CONFIG['gateway_ip']}"
+
     def login(self, role="superadmin", screenshot_name=None):
         user = CONFIG["superadmin_user"] if role == "superadmin" else CONFIG["admin_user"]
         pwd = CONFIG["superadmin_pass"] if role == "superadmin" else CONFIG["admin_pass"]
@@ -320,12 +340,14 @@ class RouterWebController:
         self.page.wait_for_load_state("networkidle")
         if screenshot_name:
             self.page.screenshot(path=self.rep.img_path(screenshot_name))
+
     def get_public_ip(self):
         try:
             r = requests.get("https://api.ipify.org", timeout=10)
             return r.text.strip()
         except Exception:
             return ""
+
 
 def run_stage_1(ctrl, term_page, rep):
     print("\n=== Starting Stage 1: Basic Access and Connectivity Check ===")
@@ -376,11 +398,18 @@ def run_stage_1(ctrl, term_page, rep):
         ctrl.page.click(UI_SELECTORS["sidebar_diagnostics"])
         ctrl.page.wait_for_load_state("networkidle")
         ctrl.page.screenshot(path=rep.img_path("2.4_GUI_Diagnostics.png"))
-        rep.record("2.4", "WAN Diagnostics (GUI)", "PASS", "Entered system diagnostics tool interface", ["2.4_GUI_Diagnostics.png"])
+        rep.record(
+            "2.4",
+            "WAN Diagnostics (GUI)",
+            "PASS",
+            "Entered system diagnostics tool interface",
+            ["2.4_GUI_Diagnostics.png"])
     except Exception as e:
         rep.record("2.4", "WAN Diagnostics (GUI)", "FAIL", str(e))
     loss6, avg6, cmd6, out6 = run_ping_stats("www.google.com", count=4, ipv6=True)
-    rep.render_terminal_screenshot(term_page, " ".join(cmd6) if isinstance(cmd6, list) else cmd6, out6, "4.8_Ping6_Google.png")
+    rep.render_terminal_screenshot(
+        term_page, " ".join(cmd6) if isinstance(
+            cmd6, list) else cmd6, out6, "4.8_Ping6_Google.png")
     try:
         term_page.goto("https://test-ipv6.com/", timeout=30000)
         term_page.wait_for_load_state("networkidle")
@@ -390,6 +419,7 @@ def run_stage_1(ctrl, term_page, rep):
                    f"IPv6 packet loss={loss6}%, test-ipv6 10/10={score_ok}", ["4.8_Ping6_Google.png", "4.8_Test_IPv6_Score.png"])
     except Exception as e:
         rep.record("4.8", "IPv6 Connectivity", "FAIL", str(e))
+
 
 def run_stage_2(term_page, rep):
     print("\n=== Starting Stage 2: Throughput Speed Test and Network Experience Test ===")
@@ -406,7 +436,9 @@ def run_stage_2(term_page, rep):
     for cid, title, cfg, img_fn in bands:
         ok, conn_out = connect_wifi(cfg["ssid"], cfg["pass"])
         if not ok:
-            rep.record(cid, title, "SKIP", f"Unable to connect SSID: {cfg['ssid']} (ignore if device does not support this band)")
+            rep.record(
+                cid, title, "SKIP", f"Unable to connect SSID: {
+                    cfg['ssid']} (ignore if device does not support this band)")
             continue
         c_s, o_s = run_cmd("speedtest-cli --simple", timeout=60)
         rep.render_terminal_screenshot(term_page, f"[{cfg['ssid']}] speedtest-cli --simple", o_s, img_fn)
@@ -445,13 +477,17 @@ def run_stage_2(term_page, rep):
         mbps = (downloaded * 8) / ((time.time() - t0) * 1_000_000)
         rep.render_terminal_screenshot(
             term_page, f"GET {url_500m}",
-            f"Downloaded: {downloaded / (1024*1024):.2f} MB in {time.time()-t0:.1f}s\nAvg Throughput: {mbps:.2f} Mbps",
+            f"Downloaded: {downloaded /
+                           (1024 *
+                            1024):.2f} MB in {time.time() -
+                                              t0:.1f}s\nAvg Throughput: {mbps:.2f} Mbps",
             "3.7_P2P_Heavy_Download.png"
         )
         rep.record("3.7", "P2P / Heavy Download (testfile.org)", "PASS" if downloaded > 0 else "FAIL",
                    f"Average download speed {mbps:.2f} Mbps", ["3.7_P2P_Heavy_Download.png"])
     except Exception as e:
         rep.record("3.7", "P2P / Heavy Download (testfile.org)", "FAIL", str(e))
+
 
 def run_stage_3(ctrl, term_page, rep):
     print("\n=== Starting Stage 3: Core Functionality (Configure-Verify-Cleanup) ===")
@@ -479,11 +515,15 @@ def run_stage_3(ctrl, term_page, rep):
     finally:
         http_srv.stop()
     for cid, title, sidebar, img, note in [
-        ("4.3", "Parental Control / Web Filtering", "sidebar_parental", "4.3_Parental_Control_UI.png", "Verified parental control keyword filtering interface"),
-        ("4.4", "QoS (Quality of Service)", "sidebar_qos", "4.4_QoS_Config_UI.png", "Captured QoS bandwidth limit configuration page"),
-        ("4.5", "DDNS (No-IP)", "sidebar_ddns", "4.5_DDNS_NoIP_UI.png", f"Verified No-IP dynamic domain configuration ({CONFIG['ddns_domain']})"),
+        ("4.3", "Parental Control / Web Filtering", "sidebar_parental",
+         "4.3_Parental_Control_UI.png", "Verified parental control keyword filtering interface"),
+        ("4.4", "QoS (Quality of Service)", "sidebar_qos", "4.4_QoS_Config_UI.png",
+         "Captured QoS bandwidth limit configuration page"),
+        ("4.5", "DDNS (No-IP)", "sidebar_ddns", "4.5_DDNS_NoIP_UI.png",
+         f"Verified No-IP dynamic domain configuration ({CONFIG['ddns_domain']})"),
         ("4.7", "Guest Network", "sidebar_guest", "4.7_Guest_Network_UI.png", "Verified guest network configuration page"),
-        ("4.15", "Multi-Link Operation (MLO)", "sidebar_wireless", "4.15_MLO_Wireless_UI.png", "Verified MLO wireless configuration interface"),
+        ("4.15", "Multi-Link Operation (MLO)", "sidebar_wireless",
+         "4.15_MLO_Wireless_UI.png", "Verified MLO wireless configuration interface"),
     ]:
         try:
             ctrl.page.click(UI_SELECTORS["menu_advanced"])
@@ -493,6 +533,7 @@ def run_stage_3(ctrl, term_page, rep):
             rep.record(cid, title, "PASS", note, [img])
         except Exception as e:
             rep.record(cid, title, "FAIL", str(e))
+
 
 def run_stage_4(rep):
     print("\n=== Starting Stage 4: ACS TR-069 and TAUC Remote Management ===")
@@ -521,6 +562,7 @@ def run_stage_4(rep):
                    f"ACS remote reboot command sent, device recovered online={recovered}")
     except Exception as e:
         rep.record("10.3", "ACS Remote Reboot", "FAIL", str(e))
+
 
 def run_stage_5(ctrl, term_page, rep, ping_seconds=3600, skip_destructive=False):
     print("\n=== Starting Stage 5: Reboot, Upgrade, and Long-Term Stability Test ===")
@@ -557,7 +599,12 @@ def run_stage_5(ctrl, term_page, rep, ping_seconds=3600, skip_destructive=False)
             except Exception as e:
                 rep.record("6.1", "Firmware Upgrade via UI", "FAIL", str(e))
         else:
-            rep.record("6.1", "Firmware Upgrade via UI", "SKIP", f"Firmware file not found: {CONFIG['firmware_bin_path']}")
+            rep.record(
+                "6.1",
+                "Firmware Upgrade via UI",
+                "SKIP",
+                f"Firmware file not found: {
+                    CONFIG['firmware_bin_path']}")
     targets = [CONFIG["gateway_ip"], "8.8.8.8", "1.1.1.1"]
     print(f">>> Starting long-term Ping monitoring ({ping_seconds} seconds) -> targets: {targets}")
     imgs_ping = []
@@ -574,6 +621,7 @@ def run_stage_5(ctrl, term_page, rep, ping_seconds=3600, skip_destructive=False)
         details.append(f"{tgt}: packet loss={loss}%, average latency={avg_ms}ms")
     rep.record("2.5 / 7.2", f"Long-Duration Ping Stability ({ping_seconds}s)",
                "PASS" if all_pass else "FAIL", " | ".join(details), imgs_ping)
+
 
 def main():
     parser = argparse.ArgumentParser(description="TP-Link Router ATP Automated Test Script")
@@ -613,6 +661,7 @@ def main():
                         skip_destructive=not args.run_destructive)
         browser.close()
     reporter.generate_html()
+
 
 def run_stage(stage, ping_seconds=300, run_destructive=False, headed=False):
     """Call a single test stage as a library, does not automatically read CLI arguments.
