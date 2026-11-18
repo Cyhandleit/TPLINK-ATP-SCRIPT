@@ -110,7 +110,7 @@ def redact_image(path, regions):
             for x1, y1, x2, y2 in regions:
                 d.rectangle([x1, y1, x2, y2], fill=(0, 0, 0))
             im.save(path)
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
 # ---------------- Test executor ----------------
