@@ -60,6 +60,16 @@ DEFAULT_CONFIG = {
     "ping_seconds": int(_env("ATP_PING_SECONDS", "300")),
     "run_destructive": _env("ATP_RUN_DESTRUCTIVE", "false").lower() == "true",
     "headed": _env("ATP_HEADED", "false").lower() == "true",
+    "wifi_24g_ssid": _env("ATP_WIFI_24G_SSID", ""),
+    "wifi_24g_pass": _env("ATP_WIFI_24G_PASS", ""),
+    "wifi_5g_ssid": _env("ATP_WIFI_5G_SSID", ""),
+    "wifi_5g_pass": _env("ATP_WIFI_5G_PASS", ""),
+    "wifi_6g_ssid": _env("ATP_WIFI_6G_SSID", ""),
+    "wifi_6g_pass": _env("ATP_WIFI_6G_PASS", ""),
+    "wifi_guest_ssid": _env("ATP_WIFI_GUEST_SSID", ""),
+    "wifi_guest_pass": _env("ATP_WIFI_GUEST_PASS", ""),
+    "wifi_mlo_ssid": _env("ATP_WIFI_MLO_SSID", ""),
+    "wifi_mlo_pass": _env("ATP_WIFI_MLO_PASS", ""),
     "sensitive_regions": {},
     # case_id -> list of CSS selectors to highlight with red boxes on the
     # final PASS screenshot of that case. Filled per router model via

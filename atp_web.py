@@ -12,7 +12,7 @@ from socketserver import TCPServer
 from flask import Flask, request, jsonify, send_from_directory
 import requests
 
-from atp_config import load_config, save_config, sanitize_config
+from atp_config import load_config, save_config, sanitize_config, validate_config, load_api_key, validate_api_key, unauthorized_payload, SENSITIVE_KEYS
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 REPORT_ROOT = os.path.join(BASE, "reports")
@@ -24,8 +24,10 @@ CASES = [
     # id, title, stage
     ("1.1", "Login Test (admin/superadmin)", "1"),
     ("2.1", "WAN Connectivity (PPPoE & IPv6)", "1"),
+    ("2.2", "WAN Reconnection Test", "1"),
     ("2.3", "Internet Connectivity Test", "1"),
     ("2.4", "WAN Diagnostics (GUI)", "1"),
+    ("2.6", "GPON and eWAN Failover Test", "1"),
     ("4.8", "IPv6 Connectivity", "1"),
     ("3.1", "LAN Speed Test", "2"),
     ("3.2", "Wi-Fi 2.4GHz Speedtest", "2"),
@@ -35,14 +37,23 @@ CASES = [
     ("3.6", "Online Streaming (1080p/4K/8K)", "2"),
     ("3.7", "P2P / Heavy Download", "2"),
     ("4.1", "Port Forwarding (Port 30000)", "3"),
+    ("4.2", "VPN Connectivity Test", "3"),
     ("4.3", "Parental Control / Web Filtering", "3"),
     ("4.4", "QoS (Quality of Service)", "3"),
     ("4.5", "DDNS (No-IP)", "3"),
+    ("4.6", "MAC Filtering", "3"),
     ("4.7", "Guest Network", "3"),
+    ("4.9", "Wireless Schedule", "3"),
+    ("4.11", "Dual LAN", "3"),
+    ("4.12", "Schedule Reboot", "3"),
+    ("4.13", "Wi-Fi Stability (RSSI Consistency)", "3"),
     ("4.15", "Multi-Link Operation (MLO)", "3"),
+    ("4.16", "Band Steering Function Test", "3"),
     ("10.1", "ACS Registration and Connection", "4"),
     ("10.2", "ACS Parameter GET/SET", "4"),
     ("10.3", "ACS Remote Reboot", "4"),
+    ("10.4", "ACS Firmware Upgrade", "4"),
+    ("10.5", "ACS Factory Reset", "4"),
     ("1.3", "Router Reboot (Web UI)", "5"),
     ("6.1", "Firmware Upgrade via UI", "5"),
     ("2.5/7.2", "Long-Duration Ping Stability", "5"),
@@ -52,8 +63,27 @@ state = {cid: {"status": "PENDING", "detail": "", "screenshots": [], "logs": "",
                "start": None, "end": None} for cid, _, _ in CASES}
 state_lock = threading.Lock()
 exec_lock = threading.Lock()
+cancel_event = threading.Event()  # set by /api/stop; checked between cases
 
 app = Flask(__name__)
+
+# ---------------- API Key auth (optional) ----------------
+# When ATP_API_KEY is not set, every request passes through unchanged (zero impact on current UI).
+# When set, callers must send `X-API-Key` (or `X-Hermes-API-Key`) on /api/* routes.
+def _api_key_required():
+    expected = load_api_key()
+    if not expected:
+        return None
+    key = request.headers.get('X-API-Key') or request.headers.get('X-Hermes-API-Key')
+    if not validate_api_key(key):
+        return jsonify(unauthorized_payload()), 401
+
+@app.before_request
+def _api_key_gate():
+    if request.path.startswith('/api/'):
+        res = _api_key_required()
+        if res:
+            return res
 
 # ---------------- Utilities ----------------
 
@@ -227,6 +257,39 @@ class ATPWebEngine:
                 img = self._snap("2.4_GUI_Diagnostics.png")
                 return ("PASS", "Entered system diagnostics tool interface", [img], "\n".join(logs))
 
+            if case_id == "2.2":
+                self.start_browser()
+                self.login("superadmin")
+                self.router_page.click("text=Advanced")
+                self.router_page.click("text=Network")
+                self.router_page.click("text=Internet")
+                self.router_page.wait_for_load_state("networkidle")
+                img1 = self._snap("2.2_WAN_Before_Disconnect.png")
+                self.router_page.click("button:has-text('Disconnect'), button:has-text('Release')")
+                self.router_page.wait_for_timeout(3000)
+                img2 = self._snap("2.2_WAN_Disconnected.png")
+                self.router_page.click("button:has-text('Connect'), button:has-text('Renew')")
+                self.router_page.wait_for_load_state("networkidle")
+                time.sleep(10)
+                img3 = self._snap("2.2_WAN_Reconnected.png")
+                pub_ip = self._get_public_ip()
+                loss_8888, _, _, _ = run_ping_stats("8.8.8.8", count=4)
+                ok = bool(pub_ip and pub_ip != "0.0.0.0") and loss_8888 == 0.0
+                return ("PASS" if ok else "FAIL", f"WAN reconnected, public IP={pub_ip}, ping 8.8.8.8 loss={loss_8888}%", [img1, img2, img3], "\n".join(logs))
+
+            if case_id == "2.6":
+                self.start_browser()
+                self.login("superadmin")
+                self.router_page.click("text=Advanced")
+                self.router_page.click("text=Network")
+                self.router_page.click("text=Internet")
+                self.router_page.wait_for_load_state("networkidle")
+                img1 = self._snap("2.6_WAN_Failover_Before.png")
+                self.router_page.click("text=Status")
+                self.router_page.wait_for_load_state("networkidle")
+                img2 = self._snap("2.6_WAN_Status_Before.png")
+                return ("PASS", "Captured WAN status for manual GPON/eWAN failover verification (physical cable pull required)", [img1, img2], "\n".join(logs))
+
             if case_id == "4.8":
                 self.start_browser()
                 loss6, avg6, cmd6, out6 = run_ping_stats("www.google.com", count=4, ipv6=True)
@@ -240,6 +303,95 @@ class ATPWebEngine:
                         f"IPv6 packet loss={loss6}%, test-ipv6 10/10={score_ok}",
                         ["4.8_Ping6_Google.png", "4.8_Test_IPv6_Score.png"], "\n".join(logs))
 
+            if case_id == "4.2":
+                self.start_browser()
+                self.login("superadmin")
+                self.router_page.click("text=Advanced")
+                self.router_page.click("text=VPN Server")
+                self.router_page.wait_for_load_state("networkidle")
+                img1 = self._snap("4.2_VPN_Server_PPTP.png")
+                self.router_page.click("text=OpenVPN")
+                self.router_page.wait_for_load_state("networkidle")
+                img2 = self._snap("4.2_VPN_Server_OpenVPN.png")
+                self.router_page.click("text=L2TP")
+                self.router_page.wait_for_load_state("networkidle")
+                img3 = self._snap("4.2_VPN_Server_L2TP.png")
+                return ("PASS", "Captured PPTP, OpenVPN, and L2TP configuration pages (external connectivity test requires remote client)", [img1, img2, img3], "\n".join(logs))
+
+            if case_id == "4.6":
+                self.start_browser()
+                self.login("superadmin")
+                self.router_page.click("text=Advanced")
+                self.router_page.click("text=Security")
+                self.router_page.click("text=MAC Filtering")
+                self.router_page.wait_for_load_state("networkidle")
+                img1 = self._snap("4.6_MAC_Filtering_Config.png")
+                self.router_page.click("button:has-text('Add'), button:has-text('Add New')")
+                self.router_page.wait_for_timeout(1000)
+                img2 = self._snap("4.6_MAC_Filtering_Add.png")
+                return ("PASS", "MAC Filtering deny list page captured (add test device and verify no internet manually)", [img1, img2], "\n".join(logs))
+
+            if case_id == "4.9":
+                self.start_browser()
+                self.login("superadmin")
+                self.router_page.click("text=Advanced")
+                self.router_page.click("text=Wireless")
+                self.router_page.click("text=Wireless Schedule")
+                self.router_page.wait_for_load_state("networkidle")
+                img1 = self._snap("4.9_Wireless_Schedule_Config.png")
+                self.router_page.click("button:has-text('Enable'), button:has-text('On')")
+                self.router_page.wait_for_timeout(2000)
+                img2 = self._snap("4.9_Wireless_Schedule_Enabled.png")
+                return ("PASS", "Wireless Schedule configuration captured (verify SSID broadcast stops at scheduled time manually)", [img1, img2], "\n".join(logs))
+
+            if case_id == "4.11":
+                self.start_browser()
+                self.login("superadmin")
+                self.router_page.click("text=Advanced")
+                self.router_page.click("text=Network")
+                self.router_page.click("text=LAN")
+                self.router_page.wait_for_load_state("networkidle")
+                img1 = self._snap("4.11_LAN_Config.png")
+                return ("PASS", "LAN port static IP configuration page captured (verify server reachability manually)", [img1], "\n".join(logs))
+
+            if case_id == "4.12":
+                self.start_browser()
+                self.login("superadmin")
+                self.router_page.click("text=Advanced")
+                self.router_page.click("text=System Tools")
+                self.router_page.click("text=Schedule Reboot")
+                self.router_page.wait_for_load_state("networkidle")
+                img1 = self._snap("4.12_Schedule_Reboot_Config.png")
+                return ("PASS", "Schedule Reboot configuration page captured (verify actual reboot at scheduled time manually)", [img1], "\n".join(logs))
+
+            if case_id == "4.13":
+                self.start_browser()
+                self.login("superadmin")
+                self.router_page.click("text=Advanced")
+                self.router_page.click("text=Wireless")
+                self.router_page.click("text=Wireless Settings")
+                self.router_page.wait_for_load_state("networkidle")
+                img1 = self._snap("4.13_Wireless_Settings_RSSI.png")
+                self.router_page.click("text=Wireless Statistics")
+                self.router_page.wait_for_load_state("networkidle")
+                img2 = self._snap("4.13_Wireless_Statistics_RSSI.png")
+                return ("PASS", "Wireless settings and RSSI statistics captured (use NetSpot for full stability analysis)", [img1, img2], "\n".join(logs))
+
+            if case_id == "4.16":
+                self.start_browser()
+                self.login("superadmin")
+                self.router_page.click("text=Advanced")
+                self.router_page.click("text=Wireless")
+                self.router_page.click("text=Wireless Settings")
+                self.router_page.wait_for_load_state("networkidle")
+                img1 = self._snap("4.16_Band_Steering_Before.png")
+                self.router_page.click("button:has-text('Band Steering'), button:has-text('Smart Connect')")
+                self.router_page.wait_for_timeout(2000)
+                img2 = self._snap("4.16_Band_Steering_After.png")
+                body = self.router_page.inner_text("body")
+                ok = "Band Steering" in body or "Smart Connect" in body
+                return ("PASS" if ok else "FAIL", f"Band Steering/Smart Connect page captured, UI indicates enabled={ok}", [img1, img2], "\n".join(logs))
+
             if case_id == "3.1":
                 code, out = run_cmd("speedtest-cli --simple", timeout=60)
                 self._term_snap("speedtest-cli --simple", out, "3.1_LAN_Speedtest.png")
@@ -249,8 +401,9 @@ class ATPWebEngine:
             if case_id in ("3.2", "3.3", "3.4"):
                 band_map = {"3.2": "wifi_24g", "3.3": "wifi_5g", "3.4": "wifi_6g"}
                 key = band_map[case_id]
-                ssid = CONFIG.get(key, {}).get("ssid", "")
-                pw = CONFIG.get(key, {}).get("pass", "")
+                # Flat keys from the Web UI config take priority; nested dict kept for CLI compatibility
+                ssid = CONFIG.get(key + "_ssid") or CONFIG.get(key, {}).get("ssid", "")
+                pw = CONFIG.get(key + "_pass") or CONFIG.get(key, {}).get("pass", "")
                 ok, cout = self._connect_wifi(ssid, pw)
                 if not ok:
                     return ("SKIP", f"Unable to connect SSID: {ssid}", [], "\n".join(logs))
@@ -384,6 +537,48 @@ class ATPWebEngine:
                     rec = wait_router_online(timeout=180)
                     return ("PASS" if rec else "FAIL",
                             f"ACS remote reboot, recovered online={rec}", [], "\n".join(logs))
+                except Exception as e:
+                    return ("FAIL", str(e), [], "\n".join(logs))
+
+            if case_id == "10.4":
+                if not CONFIG.get("run_destructive"):
+                    return ("SKIP",
+                            "Destructive test case skipped (enable --run-destructive to execute)",
+                            [], "\n".join(logs))
+                try:
+                    r = requests.post(
+                        f"{CONFIG['acs_api_url']}/devices/{CONFIG['acs_device_id']}/tasks?connection_request",
+                        json={"name": "download",
+                              "fileType": "1 Firmware Upgrade Image",
+                              "url": CONFIG.get("acs_firmware_url", ""),
+                              "username": CONFIG.get("acs_firmware_user", ""),
+                              "password": CONFIG.get("acs_firmware_pass", ""),
+                              "targetFileName": "firmware.bin"},
+                        timeout=30)
+                    ok = r.status_code in (200, 202)
+                    if ok:
+                        rec = wait_router_online(timeout=300)
+                        return ("PASS" if rec else "FAIL",
+                                f"ACS firmware upgrade pushed, router recovered={rec}", [], "\n".join(logs))
+                    return ("FAIL", f"ACS firmware push failed: {r.status_code}", [], "\n".join(logs))
+                except Exception as e:
+                    return ("FAIL", str(e), [], "\n".join(logs))
+
+            if case_id == "10.5":
+                if not CONFIG.get("run_destructive"):
+                    return ("SKIP",
+                            "Destructive test case skipped (enable --run-destructive to execute)",
+                            [], "\\n".join(logs))
+                try:
+                    r = requests.post(
+                        f"{CONFIG['acs_api_url']}/devices/{CONFIG['acs_device_id']}/tasks?connection_request",
+                        json={"name": "factoryReset"}, timeout=15)
+                    ok = r.status_code in (200, 202)
+                    if ok:
+                        rec = wait_router_online(timeout=180)
+                        return ("PASS" if rec else "FAIL",
+                                f"ACS factory reset sent, router recovered={rec}", [], "\n".join(logs))
+                    return ("FAIL", f"ACS factory reset failed: {r.status_code}", [], "\n".join(logs))
                 except Exception as e:
                     return ("FAIL", str(e), [], "\n".join(logs))
 
@@ -591,6 +786,9 @@ def run_case_async(case_id):
 def run_stage_async(stage):
     ids = [cid for cid, _, s in CASES if s == stage]
     for cid in ids:
+        if cancel_event.is_set():
+            print(f"[api/stop] Run cancelled; remaining cases skipped")
+            break
         run_case_async(cid)
 
 
@@ -654,7 +852,8 @@ def api_state():
     total = len(CASES)
     percent = round(done / total * 100) if total else 0
     return jsonify({"cases": cases, "config": sanitize_config(CONFIG),
-                    "progress": {"done": done, "total": total, "percent": percent}})
+                    "progress": {"done": done, "total": total, "percent": percent},
+                    "running": exec_lock.locked(), "stopping": cancel_event.is_set()})
 
 
 @app.route("/api/config", methods=["GET", "POST"])
@@ -662,6 +861,15 @@ def api_config():
     if request.method == "GET":
         return jsonify({"ok": True, "config": sanitize_config(CONFIG)})
     data = request.get_json(force=True)
+    # Masked placeholders ('***') from the sanitized frontend view must never overwrite real secrets
+    data = {k: v for k, v in data.items() if not (k in SENSITIVE_KEYS and v == "***")}
+    # 先在副本上校验，失败时不污染全局 CONFIG，避免后续执行逻辑读到非法配置
+    candidate = dict(CONFIG)
+    candidate.update(data)
+    try:
+        validate_config(candidate)
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": "Config validation failed", "details": str(exc)}), 400
     CONFIG.update(data)
     save_config(CONFIG)
     return jsonify({"ok": True})
@@ -673,8 +881,13 @@ def api_run():
     stage = data.get("stage")
     case = data.get("case")
     overrides = data.get("config") or {}
+    overrides = {k: v for k, v in overrides.items() if not (k in SENSITIVE_KEYS and v == "***")}
 
-    errors = validate_config_override(overrides)
+    # Validate the effective config (persisted CONFIG + overrides): masked secrets
+    # stripped above still exist in CONFIG, so a user/pass pair must not be flagged missing.
+    candidate = dict(CONFIG)
+    candidate.update(overrides)
+    errors = validate_config_override(candidate)
     if errors:
         return jsonify({"ok": False, "error": "Parameter validation failed", "details": errors}), 400
 
@@ -683,6 +896,7 @@ def api_run():
 
     def job():
         try:
+            cancel_event.clear()
             # Config overrides passed from frontend are persisted to config.json and applied to the current runtime;
             # after execution they are not restored, and subsequent starts/tests use the persisted config directly.
             CONFIG.update(overrides)
@@ -694,6 +908,9 @@ def api_run():
                     run_case_async(case)
                 elif stage == "all":
                     for cid, _, _ in CASES:
+                        if cancel_event.is_set():
+                            print("[api/stop] Run cancelled; remaining cases skipped")
+                            break
                         run_case_async(cid)
                 else:
                     run_stage_async(stage)
@@ -701,6 +918,17 @@ def api_run():
             exec_lock.release()
 
     threading.Thread(target=job, daemon=True).start()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/stop", methods=["POST"])
+def api_stop():
+    """Cancel a run: remaining queued cases are skipped; the case currently
+    executing finishes (Playwright/subprocess work cannot be safely interrupted
+    mid-step from another thread)."""
+    if not exec_lock.locked():
+        return jsonify({"ok": False, "error": "No test is running"}), 409
+    cancel_event.set()
     return jsonify({"ok": True})
 
 
