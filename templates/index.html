@@ -1238,10 +1238,11 @@ function syncThemeUI(){
   document.querySelectorAll('.theme-btn').forEach(b=>{
     b.classList.remove('active');
     b.setAttribute('aria-checked','false');
+    if((b.getAttribute('onclick')||'').indexOf("setTheme('"+t+"')")!==-1){
+      b.classList.add('active');
+      b.setAttribute('aria-checked','true');
+    }
   });
-  const active = document.querySelector('.theme-btn[onclick="setTheme(\\''+t+'\\')"]') ||
-                 document.querySelector('.theme-btn:nth-child'+(t==='system'?':nth-child(3)':t==='dark'?':nth-child(2)':':nth-child(1)'));
-  if(active){ active.classList.add('active'); active.setAttribute('aria-checked','true'); }
 }
 
 /* ---------- Test case local metadata (aligned with atp_web.py CASES) ---------- */
@@ -1299,6 +1300,7 @@ let lastLoadError = null;
 
 /* ---------- Utils ---------- */
 function $(sel){return document.querySelector(sel)}
+function setText(id,v){const el=document.getElementById(id); if(el) el.textContent=v;}
 function $$(sel){return document.querySelectorAll(sel)}
 
 function toast(msg, type = 'info', action = null) {
@@ -1328,7 +1330,7 @@ function toast(msg, type = 'info', action = null) {
   }
 }
 
-function esc(s){return String(s===''||s==null?'':s).replace(/[&<>\\\\\\\"]/g,c=>({'&':'&','<':'<','>':'>','\\\\\\\"':'\"'}[c]))}
+function esc(s){return String(s===''||s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function statusMap(s){
   const m={PASS:'Passed',FAIL:'Failed',PENDING:'Pending',RUNNING:'Running',SKIP:'Skipped'};
   return m[s]||s;
@@ -1366,7 +1368,7 @@ function navigate(ev, view){
   if(ev) ev.preventDefault();
   activeView = view;
   $$('.nav-tab').forEach(n=>{n.classList.remove('active'); n.setAttribute('aria-selected','false');});
-  const t = $$('.nav-tab[onclick="navigate(event,\\''+view+'\\')"]')[0];
+  const t = Array.from($$('.nav-tab')).find(n=>(n.getAttribute('onclick')||'').indexOf("navigate(event,'"+view+"')")!==-1);
   if(t){ t.classList.add('active'); t.setAttribute('aria-selected','true'); }
   $$('section.card').forEach(s=>s.style.display='none');
   if(view==='dashboard' || view==='board'){ $$('#card-topology, #card-telemetry, #card-stats, #card-clients').forEach(s=>s.style.display='block'); }
@@ -1422,11 +1424,11 @@ async function load(){
 function showInitialSkeletons() {
   // Dashboard stats card
   const statsBody = $('#stats-body');
-  if (statsBody) statsBody.innerHTML = renderSkeletonStats();
+  // Keep real stat elements: renderStats() needs their IDs; skeletons only for fully-rebuilt regions
   
   // Telemetry card
   const telemetryBody = $('#telemetry-body');
-  if (telemetryBody) telemetryBody.innerHTML = renderSkeletonRates();
+  // Keep real rate elements: renderDashboard() needs #rate-down / #rate-up
   
   // Client table
   const tbody = $('#client-table-body');
@@ -1517,21 +1519,21 @@ function renderStats(){
     const s=(cases[cid]&&cases[cid].status||'PENDING').toUpperCase();
     if(s==='PASS') pass++; else if(s==='FAIL') fail++; else if(s==='RUNNING') run++; else pend++;
   }
-  $('#stat-total').textContent = ids.length;
-  $('#stat-pass').textContent = pass;
-  $('#stat-fail').textContent = fail;
-  const total=ids.length; const done=pass+fail+($$(Object.values(cases||{}).filter(c=>(c.status||'PENDING').toUpperCase()==='SKIP')).length||0);
+  setText('stat-total', ids.length);
+  setText('stat-pass', pass);
+  setText('stat-fail', fail);
+  const total=ids.length; const done=pass+fail+(Object.values(cases||{}).filter(c=>(c.status||'PENDING').toUpperCase()==='SKIP').length||0);
   const pct = total ? Math.round(done/total*100) : 0;
-  $('#stat-pct').textContent = pct+'%';
-  $('#stat-progress').style.width = pct+'%';
+  setText('stat-pct', pct+'%');
+  const pb=document.getElementById('stat-progress'); if(pb) pb.style.width=pct+'%';
 }
 
 function renderProgress(p){
   const total=Object.keys(cases||{}).length;
   const done = (p.done!==undefined ? p.done : Object.values(cases||{}).filter(c=>['PASS','FAIL','SKIP'].includes((c.status||'PENDING').toUpperCase())).length);
   const pct = total ? Math.round(done/total*100) : 100;
-  $('#stat-progress').style.width = pct+'%';
-  $('#stat-pct').textContent = pct+'%';
+  const pb=document.getElementById('stat-progress'); if(pb) pb.style.width=pct+'%';
+  setText('stat-pct', pct+'%');
   const running = Object.values(cases||{}).filter(c=>(c.status||'PENDING').toUpperCase()==='RUNNING').length;
   updateRunningBadge();
 }
@@ -1540,6 +1542,7 @@ function updateRunningBadge() {
   const running = Object.values(cases||{}).filter(c=>(c.status||'PENDING').toUpperCase()==='RUNNING').length;
   const badge = $('#running-badge');
   const count = $('#running-count');
+  if(!badge||!count) return;
   if (running > 0) {
     badge.style.display = 'inline-flex';
     count.textContent = running;
@@ -1556,8 +1559,8 @@ function updateTopologyClients() {
 
 function renderDashboard(){
   renderStats();
-  $('#rate-down').textContent = '—';
-  $('#rate-up').textContent = '—';
+  setText('rate-down','—');
+  setText('rate-up','—');
   renderClientTable();
   
   // Dashboard empty state when no cases configured
@@ -1670,14 +1673,14 @@ function renderClientTable(){
       <td><span class="badge ${cls}">${statusMap(status)}</span></td>
       <td><span class="num">—</span></td>
       <td><span class="num">—</span></td>
-      <td class="actions">${action}${c.logs?' <button class="btn icon small" onclick="showLog(\+esc(cid)+')">📄</button>':''}${imgs?' <button class="btn icon small" onclick="openGallery(\+esc(cid)+', ['+(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')+'])">🖼</button>':''}</td>
+      <td class="actions">${action}${c.logs?' <button class="btn icon small" onclick="showLog(\''+esc(cid)+'\')">📄</button>':''}${imgs?' <button class="btn icon small" onclick="openGallery(\''+esc(cid)+'\')">🖼</button>':''}</td>
     </tr>`;
   }
 }
 
 function renderConfig(){
   Object.entries(GROUP_KEYS).forEach(([containerId,keys])=>{
-    const el=$(containerId);
+    const el=document.getElementById(containerId);
     if(!el) return;
     el.innerHTML=keys.map(k=>{
       const v=cfg[k]!==undefined?cfg[k]:'';
@@ -1806,7 +1809,7 @@ function renderBoard(){
       <td><span class="badge ${cls}">${statusMap(status)}</span></td>
       <td><span class="num">—</span></td>
       <td><span class="num">—</span></td>
-      <td class="actions">${action}${c.logs?' <button class="btn icon small" onclick="showLog(\+esc(cid)+')">📄</button>':''}${imgs?' <button class="btn icon small" onclick="openGallery(\+esc(cid)+', ['+(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')+'])">🖼</button>':''}</td>
+      <td class="actions">${action}${c.logs?' <button class="btn icon small" onclick="showLog(\''+esc(cid)+'\')">📄</button>':''}${imgs?' <button class="btn icon small" onclick="openGallery(\''+esc(cid)+'\')">🖼</button>':''}</td>
     </tr>`;
   }
 }
@@ -1843,7 +1846,7 @@ function renderReports(){
         <div><div style="font-weight:700;color:var(--text-primary)">${esc(r.name)}</div><div style="font-size:0.75rem;color:var(--text-muted)">${esc(r.path||'')}</div></div>
         <div style="font-size:0.75rem;color:var(--text-muted)">${r.file_count||0} files ${more}</div>
       </div>
-      <div style="margin-top:var(--space-3)">${r.summary?'<a href="#" onclick="window.open(' + "+esc(r.summary) + "', '_blank')">Open HTML Report</a>':'<span style="color:var(--text-muted);font-size:0.7rem">No HTML report</span>'}</div>
+      <div style="margin-top:var(--space-3)">${r.summary?'<a href="#" onclick="window.open(\''+esc(r.summary)+'\',\'_blank\')">Open HTML Report</a>':'<span style="color:var(--text-muted);font-size:0.7rem">No HTML report</span>'}</div>
       <div style="display:flex;gap:var(--space-3);flex-wrap:wrap">${thumbs}</div>
     </div>`;
   }).join('');
@@ -1859,7 +1862,7 @@ async function runStage(event, stage){
   try{
     const r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stage,config:cfg})});
     const d=await r.json();
-    if(!d.ok){toast(d.error||'Submit failed', 'error'); restoreRunButtons(); return;}
+    if(!d.ok){toast((d.details&&d.details.length?d.details.join('; '):d.error)||'Submit failed', 'error'); restoreRunButtons(); return;}
     toast('Submitted: Stage '+stage, 'success');
     busy=true; poll();
   }catch(e){toast('Submit failed: ' + e.message, 'error'); restoreRunButtons();}
@@ -1882,7 +1885,7 @@ async function runOne(event, cid){
     const r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({case:cid,config:cfg})});
     const d=await r.json();
     if(!d.ok){
-      toast(d.error||'Submit failed', 'error', {
+      toast((d.details&&d.details.length?d.details.join('; '):d.error)||'Submit failed', 'error', {
         label: 'Retry',
         callback: () => runOne(event, cid)
       });
@@ -1994,6 +1997,7 @@ function togglePwd(btn,key){
 
 /* ---------- Gallery / Lightbox ---------- */
 function openGallery(cid, imgs){
+  if(!imgs){imgs=((cases||{})[cid]||{}).screenshots||[];}
   const meta=CASE_META[cid]||{title:cid};
   const items=imgs.length? imgs.map((s,i)=>`<div style="border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;background:#000;display:flex;flex-direction:column"><img src='${esc(s)}' style='width:100%;height:auto;max-height:48vh;object-fit:contain' alt='${esc(cid)} screenshot ${i+1}/${imgs.length}' onerror="this.style.display='none'" loading='lazy'><div style="padding:var(--space-3);font-size:0.75rem;color:var(--text-muted);background:rgba(255,255,255,0.05)">${cid} • ${meta.title} • ${i+1}/${imgs.length}</div></div>`).join(''):`<div class="empty-functional" style="padding:var(--space-5)">
     <div class="empty-functional__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div>

@@ -12,7 +12,7 @@ from socketserver import TCPServer
 from flask import Flask, request, jsonify, send_from_directory
 import requests
 
-from atp_config import load_config, save_config, sanitize_config, validate_config, load_api_key, validate_api_key, unauthorized_payload
+from atp_config import load_config, save_config, sanitize_config, validate_config, load_api_key, validate_api_key, unauthorized_payload, SENSITIVE_KEYS
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 REPORT_ROOT = os.path.join(BASE, "reports")
@@ -858,6 +858,8 @@ def api_config():
     if request.method == "GET":
         return jsonify({"ok": True, "config": sanitize_config(CONFIG)})
     data = request.get_json(force=True)
+    # Masked placeholders ('***') from the sanitized frontend view must never overwrite real secrets
+    data = {k: v for k, v in data.items() if not (k in SENSITIVE_KEYS and v == "***")}
     # 先在副本上校验，失败时不污染全局 CONFIG，避免后续执行逻辑读到非法配置
     candidate = dict(CONFIG)
     candidate.update(data)
@@ -876,8 +878,13 @@ def api_run():
     stage = data.get("stage")
     case = data.get("case")
     overrides = data.get("config") or {}
+    overrides = {k: v for k, v in overrides.items() if not (k in SENSITIVE_KEYS and v == "***")}
 
-    errors = validate_config_override(overrides)
+    # Validate the effective config (persisted CONFIG + overrides): masked secrets
+    # stripped above still exist in CONFIG, so a user/pass pair must not be flagged missing.
+    candidate = dict(CONFIG)
+    candidate.update(overrides)
+    errors = validate_config_override(candidate)
     if errors:
         return jsonify({"ok": False, "error": "Parameter validation failed", "details": errors}), 400
 
