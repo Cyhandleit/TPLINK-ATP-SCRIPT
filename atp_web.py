@@ -12,7 +12,10 @@ from socketserver import TCPServer
 from flask import Flask, request, jsonify, send_from_directory
 import requests
 
-from atp_config import load_config, save_config, sanitize_config, validate_config, load_api_key, validate_api_key, unauthorized_payload, SENSITIVE_KEYS
+from atp_config import (
+    load_config, save_config, sanitize_config, validate_config,
+    load_api_key, validate_api_key, unauthorized_payload, SENSITIVE_KEYS
+)
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 REPORT_ROOT = os.path.join(BASE, "reports")
@@ -83,6 +86,8 @@ app = Flask(__name__)
 # ---------------- API Key auth (optional) ----------------
 # When ATP_API_KEY is not set, every request passes through unchanged (zero impact on current UI).
 # When set, callers must send `X-API-Key` (or `X-Hermes-API-Key`) on /api/* routes.
+
+
 def _api_key_required():
     expected = load_api_key()
     if not expected:
@@ -90,6 +95,7 @@ def _api_key_required():
     key = request.headers.get('X-API-Key') or request.headers.get('X-Hermes-API-Key')
     if not validate_api_key(key):
         return jsonify(unauthorized_payload()), 401
+
 
 @app.before_request
 def _api_key_gate():
@@ -288,7 +294,8 @@ class ATPWebEngine:
                 pub_ip = self._get_public_ip()
                 loss_8888, _, _, _ = run_ping_stats("8.8.8.8", count=4)
                 ok = bool(pub_ip and pub_ip != "0.0.0.0") and loss_8888 == 0.0
-                return ("PASS" if ok else "FAIL", f"WAN reconnected, public IP={pub_ip}, ping 8.8.8.8 loss={loss_8888}%", [img1, img2, img3], "\n".join(logs))
+                detail = f"WAN reconnected, public IP={pub_ip}, ping 8.8.8.8 loss={loss_8888}%"
+                return ("PASS" if ok else "FAIL", detail, [img1, img2, img3], "\n".join(logs))
 
             if case_id == "2.6":
 
@@ -301,7 +308,8 @@ class ATPWebEngine:
                 self.router_page.click("text=Status")
                 self.router_page.wait_for_load_state("networkidle")
                 img2 = self._snap("2.6_WAN_Status_Before.png")
-                return ("PASS", "Captured WAN status for manual GPON/eWAN failover verification (physical cable pull required)", [img1, img2], "\n".join(logs))
+                detail = "Captured WAN status for manual GPON/eWAN failover verification (physical cable pull required)"
+                return ("PASS", detail, [img1, img2], "\n".join(logs))
 
             if case_id == "4.8":
 
@@ -329,7 +337,9 @@ class ATPWebEngine:
                 self.router_page.click("text=L2TP")
                 self.router_page.wait_for_load_state("networkidle")
                 img3 = self._snap("4.2_VPN_Server_L2TP.png")
-                return ("PASS", "Captured PPTP, OpenVPN, and L2TP configuration pages (external connectivity test requires remote client)", [img1, img2, img3], "\n".join(logs))
+                detail = ("Captured PPTP, OpenVPN, and L2TP configuration pages "
+                          "(external connectivity test requires remote client)")
+                return ("PASS", detail, [img1, img2, img3], "\n".join(logs))
 
             if case_id == "4.6":
 
@@ -342,7 +352,8 @@ class ATPWebEngine:
                 self.router_page.click("button:has-text('Add'), button:has-text('Add New')")
                 self.router_page.wait_for_timeout(1000)
                 img2 = self._snap("4.6_MAC_Filtering_Add.png")
-                return ("PASS", "MAC Filtering deny list page captured (add test device and verify no internet manually)", [img1, img2], "\n".join(logs))
+                detail = "MAC Filtering deny list page captured (add test device and verify no internet manually)"
+                return ("PASS", detail, [img1, img2], "\n".join(logs))
 
             if case_id == "4.9":
 
@@ -355,7 +366,9 @@ class ATPWebEngine:
                 self.router_page.click("button:has-text('Enable'), button:has-text('On')")
                 self.router_page.wait_for_timeout(2000)
                 img2 = self._snap("4.9_Wireless_Schedule_Enabled.png")
-                return ("PASS", "Wireless Schedule configuration captured (verify SSID broadcast stops at scheduled time manually)", [img1, img2], "\n".join(logs))
+                detail = ("Wireless Schedule configuration captured "
+                          "(verify SSID broadcast stops at scheduled time manually)")
+                return ("PASS", detail, [img1, img2], "\n".join(logs))
 
             if case_id == "4.11":
 
@@ -365,7 +378,8 @@ class ATPWebEngine:
                 self.router_page.click("text=LAN")
                 self.router_page.wait_for_load_state("networkidle")
                 img1 = self._snap("4.11_LAN_Config.png")
-                return ("PASS", "LAN port static IP configuration page captured (verify server reachability manually)", [img1], "\n".join(logs))
+                detail = "LAN port static IP configuration page captured (verify server reachability manually)"
+                return ("PASS", detail, [img1], "\n".join(logs))
 
             if case_id == "4.12":
 
@@ -375,7 +389,8 @@ class ATPWebEngine:
                 self.router_page.click("text=Schedule Reboot")
                 self.router_page.wait_for_load_state("networkidle")
                 img1 = self._snap("4.12_Schedule_Reboot_Config.png")
-                return ("PASS", "Schedule Reboot configuration page captured (verify actual reboot at scheduled time manually)", [img1], "\n".join(logs))
+                detail = "Schedule Reboot configuration page captured (verify actual reboot at scheduled time manually)"
+                return ("PASS", detail, [img1], "\n".join(logs))
 
             if case_id == "4.13":
 
@@ -388,7 +403,8 @@ class ATPWebEngine:
                 self.router_page.click("text=Wireless Statistics")
                 self.router_page.wait_for_load_state("networkidle")
                 img2 = self._snap("4.13_Wireless_Statistics_RSSI.png")
-                return ("PASS", "Wireless settings and RSSI statistics captured (use NetSpot for full stability analysis)", [img1, img2], "\n".join(logs))
+                detail = "Wireless settings and RSSI statistics captured (use NetSpot for full stability analysis)"
+                return ("PASS", detail, [img1, img2], "\n".join(logs))
 
             if case_id == "4.16":
 
@@ -403,7 +419,8 @@ class ATPWebEngine:
                 img2 = self._snap("4.16_Band_Steering_After.png")
                 body = self.router_page.inner_text("body")
                 ok = "Band Steering" in body or "Smart Connect" in body
-                return ("PASS" if ok else "FAIL", f"Band Steering/Smart Connect page captured, UI indicates enabled={ok}", [img1, img2], "\n".join(logs))
+                detail = f"Band Steering/Smart Connect page captured, UI indicates enabled={ok}"
+                return ("PASS" if ok else "FAIL", detail, [img1, img2], "\n".join(logs))
 
             if case_id == "3.1":
                 code, out = run_cmd("speedtest-cli --simple", timeout=60)
@@ -802,7 +819,7 @@ def run_stage_async(stage):
     ids = [cid for cid, _, s in CASES if s == stage]
     for cid in ids:
         if cancel_event.is_set():
-            print(f"[api/stop] Run cancelled; remaining cases skipped")
+            print("[api/stop] Run cancelled; remaining cases skipped")
             break
         run_case_async(cid)
 
