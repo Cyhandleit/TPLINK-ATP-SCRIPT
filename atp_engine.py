@@ -631,8 +631,7 @@ def run_stage_5(ctrl, term_page, rep, ping_seconds=3600, skip_destructive=False)
                 "6.1",
                 "Firmware Upgrade via UI",
                 "SKIP",
-                f"Firmware file not found: {
-                    CONFIG['firmware_bin_path']}")
+                f"Firmware file not found: {CONFIG['firmware_bin_path']}")
     targets = [CONFIG["gateway_ip"], "8.8.8.8", "1.1.1.1"]
     print(f">>> Starting long-term Ping monitoring ({ping_seconds} seconds) -> targets: {targets}")
     imgs_ping = []
