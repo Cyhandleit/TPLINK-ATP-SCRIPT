@@ -1670,7 +1670,7 @@ function renderClientTable(){
       <td><span class="badge ${cls}">${statusMap(status)}</span></td>
       <td><span class="num">—</span></td>
       <td><span class="num">—</span></td>
-      <td class="actions">${action}${imgs?' <button class="btn icon small" onclick="openGallery(${c.logs?' <button class="btn icon small" onclick="showLog(\'\''+esc(cid)+'\\')">📄</button>':''}\\''+esc(cid)+'\\', ['+(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')+'])">🖼</button>':''}</td>
+      <td class="actions">${action}${c.logs?' <button class="btn icon small" onclick="showLog(\+esc(cid)+')">📄</button>':''}${imgs?' <button class="btn icon small" onclick="openGallery(\+esc(cid)+', ['+(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')+'])">🖼</button>':''}</td>
     </tr>`;
   }
 }
@@ -1806,7 +1806,7 @@ function renderBoard(){
       <td><span class="badge ${cls}">${statusMap(status)}</span></td>
       <td><span class="num">—</span></td>
       <td><span class="num">—</span></td>
-      <td class="actions">${action}${imgs?' <button class="btn icon small" onclick="openGallery(${c.logs?' <button class="btn icon small" onclick="showLog(\'\''+esc(cid)+'\\')">📄</button>':''}\\''+esc(cid)+'\\', ['+(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')+'])">🖼</button>':''}</td>
+      <td class="actions">${action}${c.logs?' <button class="btn icon small" onclick="showLog(\+esc(cid)+')">📄</button>':''}${imgs?' <button class="btn icon small" onclick="openGallery(\+esc(cid)+', ['+(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')+'])">🖼</button>':''}</td>
     </tr>`;
   }
 }
