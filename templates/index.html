@@ -1183,7 +1183,7 @@ table.clients button[disabled] {
       <div style="margin-left:auto;display:flex;align-items:center;gap:var(--space-2)">
         <button class="btn ghost small" onclick="exportConfig()" title="Export configuration to JSON">&#x2B0B; Export</button>
         <button class="btn ghost small" onclick="document.getElementById('cfg-import-file').click()" title="Import configuration from JSON">&#x2B06; Import</button>
-        <input type="file" id="cfg-import-file" accept=".json" style="display:none" onchange="importConfig(this)">
+        <input type="file" id="cfg-import-file" name="cfg-import-file" accept=".json" style="display:none" onchange="importConfig(this)" aria-label="Import configuration JSON file">
       </div>
     <div class="card-body" id="config-body" style="padding:var(--space-6)">
       <div class="cfg-groups">
@@ -1193,7 +1193,7 @@ table.clients button[disabled] {
         <div id="cfg-behavior"></div>
       </div>
       <div style="margin-top:var(--space-6);padding-top:var(--space-6);border-top:1px solid var(--border)">
-        <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:var(--space-2)">Case Highlights (JSON)</label>
+        <label for="hl-editor" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:var(--space-2)">Case Highlights (JSON)</label>
         <textarea id="hl-editor" class="mono-sm" style="width:100%;min-height:120px;padding:var(--space-3);border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text-primary);font-family:var(--font-mono);resize:vertical"></textarea>
         <div id="hl-editor-error" class="error-message" style="display:none" aria-live="polite"></div>
       </div>
@@ -1719,11 +1719,11 @@ function renderConfig(){
       const inputType=isPassword?'password':(isBool?'checkbox':'text');
       const masked=isPassword&&v&&v!=='***'?'*'.repeat(Math.min(v.length,8)):v;
       const inputHtml=isBool
-        ?`<input type='checkbox' ${checked} onchange="cfg['${k}']=this.checked" />`
-        :`<input type='${inputType}' value='${esc(masked)}' onchange="cfg['${k}']=this.value" ${isPassword?'autocomplete="new-password"':''} />`;
+        ?`<input type='checkbox' id='cfg-in-${k}' name='${k}' ${checked} onchange="cfg['${k}']=this.checked" />`
+        :`<input type='${inputType}' id='cfg-in-${k}' name='${k}' value='${esc(masked)}' onchange="cfg['${k}']=this.value" ${isPassword?'autocomplete="new-password"':''} />`;
       const toggle=isPassword?`<button class="pwd-toggle" type="button" onclick='togglePwd(this,${JSON.stringify(k)})' title='Show/Hide'>👁</button>`:'';
       const field=isPassword?`<div class="cfg-input-wrap">${inputHtml}${toggle}</div>`:inputHtml;
-      return `<div class="cfg-item"><label>${esc(k)}</label>${field}</div>`;
+      return `<div class="cfg-item"><label for='cfg-in-${k}'>${esc(k)}</label>${field}</div>`;
     }).join('');
   });
   const editor=$('#hl-editor');
