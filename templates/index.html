@@ -4,604 +4,1241 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>TP-Link ATP Automation Test Platform</title>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-/* ---------- Design System (TP-Link Omada / Tauc / Aginet inspired) ---------- */
+/* ========================================================================
+   USER JOURNEY STORYBOARD — Inline Documentation
+   ========================================================================
+   This file implements the 7-step QA engineer journey documented in USER_JOURNEY.md:
+
+   STEP 1 — LAND (0–5s): Engineer opens dashboard → sees topology, status, CTAs
+   STEP 2 — ORIENT (5–15s): Scans topology hero → understands Internet→Router→Clients flow
+   STEP 3 — SELECT (15–30s): Clicks "Run All" / Stage → toast + progress bar + loading state
+   STEP 4 — WAIT/MONITOR (30s–5min): 3s polling updates progress, status chips, running count
+   STEP 5 — INSPECT PASS: Clicks thumbnail → lightbox with red-box highlights + "Open in New Tab"
+   STEP 6 — INSPECT FAIL: Clicks "Retry" → single case re-runs → back to monitoring
+   STEP 7 — ARCHIVE: Reports tab → historical runs grid with screenshots
+
+   EMOTIONAL ARC per step:
+   1. Oriented, confident    ← Topology hero + green status pill
+   2. In control             ← Visual flow diagram
+   3. Empowered              ← Clear primary CTA, instant toast feedback
+   4. Informed, not anxious  ← Live progress bar + running count + in-place status updates
+   5. Validated              ← Lightbox evidence with highlights
+   6. Agency                 ← One-click retry, no context switch
+   7. Trust                  ← Reports grid with thumbnails, accumulated history
+
+   Key UI anchors mapped to journey steps:
+   - Topbar (status pill, nav tabs, theme)          → Steps 1, 2, 7
+   - Network Topology card (.bento-1)               → Steps 1, 2
+   - Overview stats + progress bar                  → Steps 3, 4
+   - Client/Test table (badges, retry, thumbs)      → Steps 4, 5, 6
+   - Lightbox modal (#lightbox)                     → Steps 5, 6
+   - Reports grid (#reports-grid-inline)            → Step 7
+   - Toast (#toast)                                 → Steps 3, 6
+   ======================================================================== */
+/* ========================================================================
+   TP-Link ATP — Test Console Aesthetic (Cold Calm Precision)
+   Target emotional arc: Engineer in lab/office, mixed lighting, needs to trust every pixel.
+   - No radial glow, no frosted glass, no pulsing decorations
+   - Brand color ONLY on primary CTA + active nav + focus ring
+   - Status colors ONLY on badges
+   - Monospace for ALL numbers (rates, counts, durations, IPs)
+   - 1px solid borders only, no double borders, no decorative top borders
+   - Tight grid density (--space-5 gap/padding) for control-panel feel
+   ======================================================================== */
+
+/* ---------- Theme tokens (Neutral canvas, precision surfaces) ---------- */
 :root {
-  /* Brand color: TP-Link deep blue */
-  --color-brand: #005a9e;
-  --color-brand-hover: #004580;
+  /* Canvas — neutral, no glow */
+  --canvas: #F8FAFC;           /* Slate-50: cold, calm, paper-like */
+  --canvas-glow: none;         /* REMOVED: radial glow was toy-like */
+  --canvas-dark: #0B131E;      /* Deep navy for dark mode */
 
-  /* Background */
-  --color-bg: #f3f4f6;
-  --color-surface: #ffffff;
-  --color-sidebar: #ffffff;
-  --color-topbar: #ffffff;
+  /* Surfaces — opaque, no frost/glass */
+  --surface: #FFFFFF;
+  --surface-frost: #FFFFFF;    /* Was rgba(255,255,255,0.88) — now opaque */
+  --surface-dark: #142030;
 
-  /* Borders and dividers */
-  --color-border: #e5e7eb;
-  --color-border-hover: #d1d5db;
-  --color-divider: #f3f4f6;
+  /* Borders — single 1px line, no hover tint on secondary elements */
+  --border: #E2E8F0;           /* Slate-200: crisp, technical */
+  --border-hover: #CBD5E1;     /* Slate-300: subtle, not brand */
+  --border-dark: #334155;      /* Slate-700 */
+
+  /* Primary brand — TP-Link Cyan #00B4E5 — RESTRICTED to: primary CTA, active nav, focus ring ONLY */
+  --brand: #00B4E5;
+  --brand-hover: #0099C4;
+  --brand-active: #0082A8;
+  --brand-tint: #E0F6FD;       /* Kept for primary CTA background only */
+  --brand-dark: #1CC8EE;
+  --brand-dark-hover: #38D4F5;
+  --brand-dark-glow: none;     /* REMOVED: glow is decoration */
 
   /* Typography */
-  --color-text: #111827;
-  --color-text-secondary: #4b5563;
-  --color-text-muted: #6b7280;
-  --color-text-inverse: #ffffff;
+  --text-primary: #0F172A;     /* Slate-900: high contrast */
+  --text-secondary: #475569;   /* Slate-600: readable secondary */
+  --text-muted: #94A3B8;       /* Slate-400: muted labels */
+  --text-inverse: #FFFFFF;
+  --text-dark-primary: #F1F5F9;
+  --text-dark-secondary: #94A3B8;
+  --text-dark-muted: #64748B;
 
-  /* Status colors */
-  --color-success: #15803d;
-  --color-danger: #dc2626;
-  --color-warn: #ca8a04;
-  --color-info: #005a9e;
+  /* Status (both modes) — used ONLY on badges/dots, never as tint */
+  --ok: #10B981;               /* Emerald-500 */
+  --ok-bg: #ECFDF5;            /* Emerald-50 */
+  --warn: #F59E0B;             /* Amber-500 */
+  --warn-bg: #FFFBEB;          /* Amber-50 */
+  --err: #EF4444;              /* Red-500 */
+  --err-bg: #FEF2F2;           /* Red-50 */
 
-  /* Layout */
-  --font-sans: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  /* Fonts */
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-
-  /* Border radius */
-  --radius-sm: 6px;
+  /* Radius & spacing — 4px / 8px vertical rhythm, tighter grid */
+  --radius-sm: 6px;            /* Reduced from 8px for precision feel */
   --radius-md: 8px;
   --radius-lg: 12px;
+  --radius-xl: 16px;
   --radius-pill: 9999px;
 
-  /* Spacing */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
+  --space-5: 20px;             /* Card gap & padding — tighter density */
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Shadow — neutral, no cyan tint, lower elevation */
+  --shadow-card: 0 2px 8px -2px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 8px 24px -4px rgba(15, 23, 42, 0.08);
+
+  /* Motion — reduced, functional only */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --trans: 150ms var(--ease);  /* Faster, snappier */
+  --trans-fast: 100ms var(--ease);
+  --trans-slow: 200ms var(--ease);
 }
 
-/* ---------- Reset ---------- */
-*{box-sizing:border-box;margin:0;padding:0}
-html{font-size:14px}
-body{
+/* ========================================================================
+   Reduced Motion — respect user preference for minimal animation
+   ======================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- Dark mode (Deep Technical Night) — applied via [data-theme="dark"] ---------- */
+[data-theme="dark"] {
+  --canvas: #0B131E;
+  --canvas-glow: none;                              /* REMOVED: radial glow */
+  --surface: #142030;
+  --surface-frost: #142030;                         /* Was rgba — now opaque */
+  --border: #334155;                                /* Slate-700 */
+  --border-hover: #475569;                          /* Slate-600 — neutral, not brand */
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --text-inverse: #FFFFFF;
+  --text-dark-primary: #F1F5F9;
+  --text-dark-secondary: #94A3B8;
+  --text-dark-muted: #64748B;
+  --brand: #1CC8EE;
+  --brand-hover: #38D4F5;
+  --brand-active: #1FAED8;
+  --brand-tint: rgba(28, 200, 238, 0.10);           /* Primary CTA only */
+  --shadow-card: 0 2px 8px -2px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 8px 24px -4px rgba(0, 0, 0, 0.45);
+}
+
+/* ---------- Zero-flicker theme script runs before body paint (inline below) ---------- */
+
+/* ---------- Reset & base ---------- */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; -webkit-font-smoothing: antialiased; }
+body {
   font-family: var(--font-sans);
-  background: var(--color-bg);
-  color: var(--color-text);
+  background: var(--canvas);           /* No glow, no fixed attachment */
+  color: var(--text-primary);
   line-height: 1.5;
   min-height: 100vh;
+  transition: background-color var(--trans), color var(--trans);
 }
 
-/* ---------- Typography ---------- */
-h1, h2, h3 { font-weight: 600; letter-spacing: -0.02em; color: var(--color-text); }
+/* ---------- Typography — sharpened hierarchy ---------- */
+h1, h2, h3 { font-weight: 700; letter-spacing: -0.02em; color: var(--text-primary); }
 h1 { font-size: 1.25rem; line-height: 1.2; }
-h2 { font-size: 1.125rem; line-height: 1.25; }
-p, span, div { font-size: 0.875rem; }
+h2 { font-size: 1.1rem; line-height: 1.25; }
+p, span, div { font-size: 0.875rem; color: var(--text-secondary); }
+
+/* ALL numbers: monospace + tabular-nums */
 .mono { font-family: var(--font-mono); }
+.mono-sm { font-family: var(--font-mono); font-size: 0.8rem; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
-/* ---------- Layout ---------- */
-.app{display:flex;min-height:100vh}
-.sidebar{
-  position:fixed;inset:0 auto 0 0;width:240px;background:var(--color-sidebar);
-  border-right:1px solid var(--color-border);color:var(--color-text);display:flex;flex-direction:column;z-index:30;
-  transform:translateX(0);transition:transform .25s ease,width .25s ease;
-}
-.sidebar-brand{
-  height:56px;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid var(--color-border);flex-shrink:0;
-}
-.brand-mark{
-  width:26px;height:26px;background:var(--color-brand);border-radius:var(--radius-sm);display:grid;place-items:center;font-size:1.2rem;color:var(--color-text-inverse);
-}
-.brand-text{font-weight:700;font-size:1.1rem;letter-spacing:-0.02em;color:var(--color-text)}
-.brand-text small{display:block;font-size:0.65rem;font-weight:700;opacity:.65;margin-top:1px;color:var(--color-text-secondary)}
-.sidebar-nav{flex:1;overflow-y:auto;padding:10px 6px}
-.nav-item{
-  display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:var(--radius-sm);
-  color:var(--color-text-secondary);text-decoration:none;font-size:0.875rem;font-weight:500;margin:2px 6px;
-  transition:all .15s ease;border:1px solid transparent;
-}
-.nav-item .nav-icon{font-size:1rem}
-.nav-item:hover{background:#f3f4f6;color:var(--color-brand);border-color:transparent}
-.nav-item.active{
-  background:#eef4fb;color:var(--color-brand);border-left:3px solid var(--color-brand);padding-left:9px;border-color:transparent;
-}
-.sidebar-footer{padding:14px 18px;font-size:0.7rem;color:var(--color-text-muted);border-top:1px solid var(--color-border);flex-shrink:0}
-.sidebar-version{font-weight:700;color:var(--color-text-secondary);margin-bottom:4px}
-/* Mobile sidebar overlay: shown when sidebar is open, click outside area to close */
-.sidebar-overlay{
-  position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:25;opacity:0;pointer-events:none;transition:opacity .25s ease;backdrop-filter:blur(2px)
-}
-.sidebar.open ~ .sidebar-overlay{opacity:1;pointer-events:auto}
-/* Desktop collapsed sidebar: icon-only strip (Omada / Tauc / Aginet style) */
-.sidebar.collapsed{width:64px;overflow:hidden;transform:none}
-.app-body.sidebar-collapsed{margin-left:64px}
-.sidebar.collapsed .brand-text{display:none}
-.sidebar.collapsed .sidebar-brand{justify-content:center;gap:0;padding:0 8px}
-.sidebar.collapsed .nav-label{display:none}
-.sidebar.collapsed .nav-item{justify-content:center;padding:8px 0;gap:0}
-.sidebar.collapsed .nav-item.active{border-left:none;border-bottom:3px solid var(--color-brand);padding-left:0}
-.sidebar-collapsed .cases-table.compact th:nth-child(5),
-.sidebar-collapsed .cases-table.compact td:nth-child(5),
-.sidebar-collapsed .cases-table.compact th:nth-child(6),
-.sidebar-collapsed .cases-table.compact td:nth-child(6){display:none}
-.sidebar-collapsed .cases-table.compact th:nth-child(2),
-.sidebar-collapsed .cases-table.compact td:nth-child(2){width:auto}
-.sidebar-footer code{
-  color:var(--color-brand);background:#eef4fb;padding:1px 5px;border-radius:4px;
-}
+/* Primary metrics: 2rem, 800 weight, tabular-nums */
+.metric-primary { font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 
-/* ---------- App body ---------- */
-.app-body{flex:1;margin-left:240px;display:flex;flex-direction:column;min-height:100vh;transition:margin-left .25s ease;background:var(--color-bg)}
-.topbar{
-  height:56px;background:var(--color-topbar);border-bottom:1px solid var(--color-border);display:flex;align-items:center;
-  justify-content:space-between;padding:0 20px;flex-shrink:0;z-index:20;
-}
-.nav-toggle{
-  display:none;background:none;border:none;color:var(--color-text);font-size:1.1rem;padding:7px;border-radius:var(--radius-sm);cursor:pointer;
-}
-.nav-toggle:hover{background:#f3f4f6}
-.topbar-title{display:flex;flex-direction:column;gap:2px}
-.topbar-divider{margin:0 6px;color:var(--color-text-muted)}
-.topbar-right{display:flex;gap:8px;align-items:center}
+/* Secondary labels: uppercase, 0.08em letter-spacing, 0.7rem */
+.label-secondary { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
 
-/* ---------- Buttons ---------- */
-.btn{
-  display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:7px 14px;border:1px solid var(--color-border);
-  border-radius:var(--radius-md);font-size:0.875rem;font-weight:500;cursor:pointer;transition:all .15s ease;
-  white-space:nowrap;color:var(--color-text);background:var(--color-surface);
-}
-.btn:hover{background:#f3f4f6;border-color:var(--color-border-hover)}
-.btn:active{transform:translateY(0.5px)}
-.btn.primary{background:var(--color-brand);border-color:var(--color-brand);color:var(--color-text-inverse)}
-.btn.primary:hover{background:var(--color-brand-hover);border-color:var(--color-brand-hover)}
-.btn.ghost{background:transparent;border:1px solid var(--color-border);color:var(--color-text-secondary)}
-.btn.ghost:hover{background:#f3f4f6;color:var(--color-text)}
-.btn.danger{background:var(--color-danger);border-color:var(--color-danger);color:var(--color-text-inverse)}
-.btn.danger:hover{background:#b91c1c;border-color:#b91c1c}
-.btn.success{background:var(--color-success);border-color:var(--color-success);color:var(--color-text-inverse)}
-.btn.success:hover{background:#14532d;border-color:#14532d}
-.btn.small{padding:5px 10px;font-size:0.78rem;border-radius:6px}
-.btn.icon{padding:7px}
-.btn[disabled]{opacity:.6;cursor:not-allowed}
+a { color: var(--brand); text-decoration: none; }
+a:hover { text-decoration: underline; }
 
-/* ---------- Cards & layout ---------- */
-.card{
-  background:var(--color-surface);
-  border:1px solid var(--color-border);
-  border-radius:var(--radius-md);
-  box-shadow:var(--shadow-sm);overflow:hidden;
-}
-.card > header{
-  padding:12px 16px;border-bottom:1px solid var(--color-divider);display:flex;align-items:center;justify-content:space-between;gap:10px;
-}
-.card-title{font-size:0.9rem;font-weight:600;color:var(--color-text);display:flex;align-items:center;gap:8px}
-.card-body{padding:16px}
-.grid{display:grid;gap:16px}
-.grid-2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
-.grid-3{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
-.grid-4{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
-.wrap{padding:24px;max-width:1400px;margin:0 auto;width:100%}
+/* ---------- App shell ---------- */
+.app { display: flex; flex-direction: column; min-height: 100vh; }
 
-/* ---------- View switching ---------- */
-.view{display:none}
-.view.active{display:block}
+/* --- Top navbar — solid, no glass/frost --- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-6);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  transition: background-color var(--trans), border-color var(--trans);
+}
+.topbar-left, .topbar-center, .topbar-right { display: flex; align-items: center; }
+.topbar-center { gap: var(--space-4); }
 
-/* ---------- Status chips ---------- */
-.status{
-  display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:12px;font-size:0.75rem;font-weight:700;white-space:nowrap;
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--text-primary);
 }
-.status.dot::before{content:'';display:block;width:7px;height:7px;border-radius:50%}
-.status.PASS{background:#ecfdf5;color:var(--color-success)}
-.status.PASS.dot::before{background:var(--color-success)}
-.status.FAIL{background:#fef2f2;color:var(--color-danger)}
-.status.FAIL.dot::before{background:var(--color-danger)}
-.status.PENDING{background:#f3f4f6;color:var(--color-text-muted)}
-.status.PENDING.dot::before{background:#cbd5e1}
-.status.RUNNING{background:#fefbeb;color:var(--color-warn)}
-.status.RUNNING.dot::before{background:var(--color-warn);animation:pulse 1.5s infinite}
-.status.SKIP{background:#f3f4f6;color:var(--color-text-muted)}
-.status.SKIP.dot::before{background:#cbd5e1}
-@keyframes pulse{0%{opacity:1}50%{opacity:.4}100%{opacity:1}}
+.brand svg { width: 26px; height: 26px; flex-shrink: 0; }
+.brand .model { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
 
-/* ---------- Stat cards ---------- */
-.stat-card{
-  padding:16px;border-radius:var(--radius-md);border:1px solid var(--color-border);background:var(--color-surface);
-  display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow-sm);
+/* Nav tabs — no brand tint on hover for inactive tabs */
+.nav-tabs {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-1);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
-.stat-card.total{border-top:3px solid var(--color-brand)}
-.stat-card.pass{border-top:3px solid var(--color-success)}
-.stat-card.fail{border-top:3px solid var(--color-danger)}
-.stat-card.todo{border-top:3px solid var(--color-warn)}
-.stat-value{font-size:1.5rem;font-weight:800;color:var(--color-text)}
-.stat-label{font-size:0.75rem;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.02em}
+.nav-tab {
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background var(--trans), color var(--trans), border-color var(--trans);
+  white-space: nowrap;
+}
+.nav-tab:hover { background: var(--border); color: var(--text-primary); }  /* Neutral hover, NOT brand-tint */
+.nav-tab.active {
+  background: var(--brand);                     /* Brand ONLY on active */
+  color: var(--text-inverse);
+  box-shadow: none;                             /* No glow */
+}
+.nav-tab:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
-/* ---------- Config ---------- */
-.field{margin-bottom:14px}
-.field label{
-  display:block;font-size:0.8rem;font-weight:600;color:var(--color-text-muted);margin-bottom:6px;
-  letter-spacing:.02em;text-transform:uppercase;
+/* Theme switcher — segmented control, neutral hover */
+.theme-seg {
+  display: inline-flex;
+  padding: var(--space-1);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
 }
-.input-wrap{position:relative;display:flex;align-items:center}
-.input-wrap input{
-  width:100%;padding:9px 36px 9px 10px;border:1px solid var(--color-border);border-radius:var(--radius-sm);
-  background:var(--color-surface);color:var(--color-text);font-size:0.875rem;transition:border-color .2s ease,box-shadow .2s ease;
+.theme-btn {
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background var(--trans), color var(--trans);
 }
-.input-wrap input:focus{border-color:var(--color-brand);outline:none;box-shadow:0 0 0 3px rgba(0,90,158,0.1)}
-.input-wrap .toggle{
-  position:absolute;right:10px;background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:0.85rem;padding:4px;border-radius:4px;
-}
-.input-wrap .toggle:hover{color:var(--color-brand);background:#eef4fb}
-textarea.invalid{border-color:var(--color-danger) !important}
-textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
-.cfg-group{display:flex;flex-direction:column;gap:10px}
-.cfg-title{
-  font-size:0.875rem;font-weight:700;color:var(--color-brand);margin-bottom:12px;padding-bottom:8px;
-  border-bottom:1px solid var(--color-divider);display:flex;align-items:center;gap:8px;
-}
-.cfg-item{display:flex;align-items:center;gap:10px}
-.cfg-item label{min-width:150px;font-size:0.875rem;color:var(--color-text)}
-.cfg-item input[type='text'],.cfg-item input[type='password']{flex:1;padding:8px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface)}
-.cfg-item input[type='checkbox']{width:16px;height:16px;accent-color:var(--color-brand)}
-.cfg-item .pwd-toggle{margin-left:8px;background:none;border:none;color:var(--color-text-muted);cursor:pointer;padding:4px}
-.cfg-item .pwd-toggle:hover{color:var(--color-brand)}
-.group-badge{
-  font-size:0.7rem;padding:2px 8px;border-radius:10px;background:rgba(0,90,158,0.1);color:var(--color-brand);font-weight:700;margin-left:auto;
-}
-.saved-badge{
-  font-size:0.72rem;color:var(--color-success);margin-left:8px;animation:fadeIn .3s;
-}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-.hint{font-size:0.78rem;color:var(--color-text-muted);margin-top:6px}
-.hint code{
-  font-size:0.78rem;color:var(--color-brand);background:#eef4fb;padding:1px 4px;border-radius:4px;
-}
+.theme-btn:hover { background: var(--border); color: var(--text-primary); }  /* Neutral hover */
+.theme-btn.active { background: var(--brand); color: var(--text-inverse); box-shadow: none; }
+.theme-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
-/* ---------- Run bar & progress ---------- */
-.runbar{margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.runbar .primary{min-width:110px}
-.stage-pills{display:flex;gap:6px;flex-wrap:wrap}
-.stage-pills .btn{flex:1;min-width:56px;justify-content:center}
-.busy-chip{
-  display:none;align-items:center;gap:6px;padding:5px 10px;background:#fef2f2;color:var(--color-danger);
-  border:1px solid #fecaca;border-radius:20px;font-size:0.78rem;font-weight:700;
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: border-color var(--trans), background var(--trans);
 }
-.busy-dot{width:6px;height:6px;background:var(--color-danger);border-radius:50%;animation:pulse 1.5s infinite}
-.progress-wrap{margin:10px 0 0}
-.progress{height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;width:100%;margin-top:6px}
-.progress-bar{height:100%;background:var(--color-brand);width:0%;transition:width .3s}
-.progress-text{font-size:0.78rem;color:var(--color-text-muted);text-align:right;margin-top:3px}
+.status-pill.online { border-color: var(--ok); color: var(--ok); background: var(--ok-bg); }
+.status-pill.online .dot { background: var(--ok); }
+.status-pill.offline { border-color: var(--err); color: var(--err); background: var(--err-bg); }
+.status-pill.offline .dot { background: var(--err); }
+.status-pill .dot { width: 7px; height: 7px; border-radius: 50%; }
 
-/* ---------- Case table ---------- */
-.cases-table{width:100%;border-collapse:collapse;font-size:0.85rem;margin-top:8px}
-.cases-table th{
-  background:#f9fafb;color:var(--color-text-muted);font-weight:600;text-align:left;padding:10px 12px;
-  border-bottom:1px solid var(--color-border);font-size:0.75rem;text-transform:uppercase;letter-spacing:.03em;
+.btn-reboot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--trans);
 }
-.cases-table td{padding:10px 12px;border-bottom:1px solid var(--color-border);vertical-align:middle}
-.cases-table tr:last-child td{border-bottom:none}
-.cases-table tr:hover{background:#f3f4f6}
-.case-id{font-weight:700;color:var(--color-brand);font-size:0.8rem}
-.case-title{color:var(--color-text)}
-.case-stage{font-size:0.75rem;color:var(--color-text-muted)}
-.detail{font-size:0.78rem;color:var(--color-text-muted);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.time{font-size:0.75rem;color:var(--color-text-muted);white-space:nowrap}
-.screens{display:flex;gap:6px;flex-wrap:wrap}
-.screens a{
-  display:block;border:1px solid var(--color-border);border-radius:var(--radius-sm);overflow:hidden;background:#000;position:relative;
-}
-.screens img{display:block;width:64px;height:44px;object-fit:cover}
-.actions{display:flex;gap:6px;flex-wrap:wrap}
+.btn-reboot:hover { background: var(--border); color: var(--text-primary); border-color: var(--border-hover); }  /* Neutral hover */
+.btn-reboot:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.btn-reboot:active { transform: scale(0.97); }
+.btn-reboot[disabled] { opacity: 0.55; cursor: not-allowed; }
 
-/* ---------- Reports ---------- */
-.reports-grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
-.report-card{padding:16px}
-.report-card header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
-.report-name{font-weight:700;color:var(--color-text)}
-.report-meta{font-size:0.75rem;color:var(--color-text-muted)}
-.report-thumbs{display:flex;gap:6px;flex-wrap:wrap}
-.report-thumbs a{
-  display:block;border:1px solid var(--color-border);border-radius:var(--radius-sm);overflow:hidden;background:#000;width:88px;height:60px;
+/* --- Main workspace --- */
+.workspace { flex: 1; padding: var(--space-6) var(--space-5) var(--space-6); max-width: 1400px; margin: 0 auto; width: 100%; }
+
+/* --- Bento card grid — tighter density (--space-5 = 20px gap) --- */
+.bento { display: grid; gap: var(--space-5); }
+.bento-2 { grid-template-columns: repeat(2, 1fr); }
+.bento-3 { grid-template-columns: repeat(3, 1fr); }
+.bento-1 { grid-template-columns: 1fr; }
+@media (max-width: 1024px) { .bento-2, .bento-3 { grid-template-columns: 1fr; } }
+
+.card {
+  position: relative;
+  border-radius: var(--radius-lg);          /* Reduced from xl */
+  border: 1px solid var(--border);
+  background: var(--surface);               /* Opaque, no frost */
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  transition: border-color var(--trans), transform var(--trans);
 }
-.report-thumbs img{display:block;width:100%;height:100%;object-fit:cover}
-.empty-state{text-align:center;padding:40px;color:var(--color-text-muted)}
-.empty-state p{margin-top:8px}
-.logs{
-  background:#f3f4f6;color:var(--color-text);padding:12px;border-radius:var(--radius-sm);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
-  font-size:0.75rem;max-height:220px;overflow:auto;white-space:pre-wrap;margin-top:8px;border:1px solid var(--color-border);
+.card:hover { border-color: var(--border-hover); transform: translateY(-1px); box-shadow: var(--shadow-card); }
+.card header {
+  padding: var(--space-5) var(--space-5);   /* Tighter padding */
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  border-bottom: 1px solid var(--border);   /* Single border, no decorative alpha */
+}
+.card-title { font-size: 0.85rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
+.card-body { padding: var(--space-5); }     /* Tighter padding */
+
+/* ---------- Buttons — brand ONLY on primary CTA ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--trans);
+  white-space: nowrap;
+}
+.btn:hover { background: var(--border); color: var(--text-primary); border-color: var(--border-hover); }  /* Neutral hover, NOT brand-tint */
+.btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.btn:active { transform: scale(0.97); }
+.btn[disabled] { opacity: 0.55; cursor: not-allowed; pointer-events: none; }
+
+/* Primary CTA — ONLY place brand gradient/shadow lives */
+.btn.primary {
+  background: linear-gradient(135deg, #00B4E5 0%, #0095C8 100%);
+  border: none;
+  color: var(--text-inverse);
+  box-shadow: 0 2px 8px rgba(0, 180, 229, 0.2);
+}
+.btn.primary:hover { background: linear-gradient(135deg, #0099C4 0%, #0082A8 100%); box-shadow: 0 4px 12px rgba(0, 180, 229, 0.25); color: var(--text-inverse); }
+.btn.primary:active { transform: scale(0.97); box-shadow: 0 1px 4px rgba(0, 180, 229, 0.2); }
+.btn.primary[disabled] { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
+
+.btn.ghost { background: transparent; color: var(--text-secondary); border-color: var(--border); }
+.btn.ghost:hover { background: var(--border); color: var(--text-primary); border-color: var(--border-hover); }  /* Neutral hover */
+
+.btn.destructive {
+  background: var(--err-bg);
+  border: 1px solid var(--err);
+  color: var(--err);
+}
+.btn.destructive:hover { background: var(--err); color: var(--text-inverse); border-color: var(--err); }
+
+.btn.loading { position: relative; color: transparent !important; pointer-events: none; }
+.btn.loading::after {
+  content: '';
+  position: absolute;
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: var(--text-inverse);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn.loading::after,
+  .lightbox-panel.loading::after {
+    animation: none;
+    border-top-color: transparent;
+    background: var(--brand);
+  }
 }
 
-/* ---------- Lightbox ---------- */
-.lightbox{
-  position:fixed;inset:0;z-index:60;background:rgba(15,23,42,.85);display:none;align-items:center;justify-content:center;
-  padding:24px;backdrop-filter:blur(4px);
+/* ---------- Segmented controls — neutral hover, brand only on active ---------- */
+.seg {
+  display: inline-flex;
+  padding: var(--space-1);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
 }
-.lightbox.open{display:flex}
-.lightbox-close{
-  position:absolute;top:20px;right:24px;background:none;border:none;font-size:2rem;color:var(--color-text-inverse);cursor:pointer;line-height:1;
-  padding:0;width:36px;height:36px;display:grid;place-items:center;border-radius:50%;
+.seg-item {
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all var(--trans);
 }
-.lightbox-close:hover{background:rgba(255,255,255,.1)}
-.lightbox-stage{
-  position:relative;width:100%;height:100%;max-width:92vw;max-height:92vh;display:flex;align-items:center;justify-content:center;
-  overflow:hidden;
+.seg-item:hover { background: var(--border); color: var(--text-primary); }  /* Neutral hover */
+.seg-item.active { background: var(--brand); color: var(--text-inverse); box-shadow: none; }
+.seg-item:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* ---------- Toggle switch — precise, no spring ---------- */
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  vertical-align: middle;
 }
-.lightbox-panel{
-  background:var(--color-surface);border-radius:var(--radius-lg);overflow:hidden;display:flex;flex-direction:column;
-  max-width:86vw;max-height:80vh;width:900px;border:1px solid var(--color-border);
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--border);
+  border-radius: 24px;
+  transition: background var(--trans);
 }
-.lightbox-panel img{display:block;width:100%;height:auto;max-height:56vh;object-fit:contain;background:#000}
-.lightbox-caption{padding:12px 16px;font-size:0.85rem;color:var(--color-text-muted);background:#f9fafb;border-top:1px solid var(--color-border)}
-.lightbox-actions{
-  display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--color-border);justify-content:flex-end;
+.toggle-slider:before {
+  position: absolute; content: '';
+  height: 18px; width: 18px;
+  left: 3px; bottom: 3px;
+  background: #FFFFFF;
+  border-radius: 50%;
+  transition: transform var(--trans);  /* No spring */
+}
+input:checked + .toggle-slider { background: var(--brand); }
+input:checked + .toggle-slider:before { transform: translateX(20px); }
+input:focus-visible + .toggle-slider { box-shadow: 0 0 0 3px rgba(0, 180, 229, 0.3); }  /* Focus ring only */
+input:disabled + .toggle-slider { opacity: 0.55; cursor: not-allowed; }
+
+/* ---------- Live status badges & rate counters — STATIC dots, no pulse ---------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: 0.7rem;        /* Reduced to 0.7rem per spec */
+  font-weight: 700;
+  white-space: nowrap;
+}
+.badge.ok { background: var(--ok-bg); color: var(--ok); }
+.badge.warn { background: var(--warn-bg); color: var(--warn); }
+.badge.err { background: var(--err-bg); color: var(--err); }
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; }  /* Smaller dot */
+.badge.ok .dot { background: var(--ok); }
+.badge.warn .dot { background: var(--warn); }
+.badge.err .dot { background: var(--err); }
+
+.rate { display: flex; align-items: baseline; gap: var(--space-2); font-family: var(--font-mono); }
+.rate .num { font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }  /* Primary metric size */
+.rate .unit { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* ---------- Stat tiles — sharpened hierarchy ---------- */
+.stat { display: flex; flex-direction: column; gap: var(--space-1); }
+.stat .label { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.stat .value { font-family: var(--font-mono); font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text-primary); }  /* 2rem, 800, tabular-nums */
+
+/* ---------- Network Topology Hero — single authored motion moment ---------- */
+.topo-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+.topo-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.topo-node--err { border-color: var(--err); color: var(--err); }
+.topo-node--ok { border-color: var(--ok); color: var(--ok); }
+.topo-node--muted { border-color: var(--text-muted); color: var(--text-muted); }
+.topo-label { white-space: nowrap; font-weight: 500; }
+
+.topo-connector {
+  position: relative;
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  min-width: 60px;
+}
+.topo-connector::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  border: 2px solid var(--surface);
+}
+.topo-connector--active::before { background: var(--ok); border-color: var(--surface); }
+.topo-latency {
+  position: absolute;
+  top: -1.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  background: var(--surface);
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
 }
 
-/* ---------- Toast ---------- */
-.toast{
-  position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--color-sidebar);color:var(--color-text-inverse);
-  padding:10px 16px;border-radius:var(--radius-md);box-shadow:0 4px 12px rgba(0,0,0,0.15);font-size:0.875rem;z-index:100;
-  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;white-space:nowrap;
+/* REMOVED: topo-line-draw and topo-dot-reveal animations (toy-like) */
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle-slider,
+  .toggle-slider:before {
+    transition-duration: 0.01ms !important;
+  }
 }
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle-slider,
+  .toggle-slider:before {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------- Tables — neutral hover, no brand tint ---------- */
+table.clients { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+table.clients th {
+  text-align: left; padding: var(--space-3) var(--space-4);
+  color: var(--text-muted); font-weight: 600; font-size: 0.7rem;  /* 0.7rem per spec */
+  text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid var(--border);
+}
+table.clients td { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); vertical-align: middle; }
+table.clients tr:hover { background: var(--border); }  /* Neutral hover, NOT brand-tint */
+.case-id { font-weight: 800; color: var(--brand); font-family: var(--font-mono); font-size: 0.8rem; }
+
+/* ---------- Empty states — functional, no brand-tint illustrations ---------- */
+.empty {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--text-muted);
+}
+.empty h3 { margin-bottom: var(--space-2); }
+.empty p { max-width: 320px; margin: 0 auto var(--space-4); }
+
+/* Functional empty state — no decorative icon background */
+.empty-functional {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-8) var(--space-6);
+  text-align: center;
+}
+.empty-functional__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  background: var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.empty-functional__icon svg { width: 24px; height: 24px; }
+.empty-functional__content { max-width: 360px; }
+.empty-functional__title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+  letter-spacing: -0.01em;
+}
+.empty-functional__desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: var(--space-5);
+}
+.empty-functional__action { margin-top: var(--space-2); }
+.empty-functional__action .btn { min-width: 160px; }
+
+/* Inline empty state for cards/tables — neutral */
+.empty-inline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  color: var(--text-muted);
+}
+.empty-inline__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-lg);
+  background: var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+.empty-inline__icon svg { width: 18px; height: 18px; }
+.empty-inline__text { font-size: 0.875rem; color: var(--text-secondary); }
+.empty-inline__text strong { color: var(--text-primary); }
+
+/* ---------- Progress Bar — functional, no easing flair ---------- */
+.progress-bar {
+  transition: width 200ms var(--ease);  /* Faster */
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-bar { transition-duration: 0.01ms !important; }
+}
+
+/* ---------- Lightbox — clean, no backdrop blur ---------- */
+.lightbox {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(11, 19, 30, 0.85);
+  display: none; align-items: center; justify-content: center;
+  padding: var(--space-6);
+  opacity: 0;
+  transition: opacity var(--trans-fast);
+}
+.lightbox.open { display: flex; opacity: 1; }
+.lightbox-close {
+  position: absolute; top: var(--space-4); right: var(--space-6);
+  background: none; border: none; font-size: 1.6rem; color: var(--text-inverse);
+  cursor: pointer; line-height: 1; width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center;
+}
+.lightbox-close:hover { background: rgba(255,255,255,0.1); }
+.lightbox-panel {
+  background: var(--surface); border-radius: var(--radius-lg);
+  overflow: hidden; display: flex; flex-direction: column;
+  max-width: 86vw; max-height: 82vh; width: 900px; border: 1px solid var(--border);
+  transform: scale(0.95);
+  opacity: 0;
+  transition: transform var(--trans-fast), opacity var(--trans-fast);
+}
+.lightbox.open .lightbox-panel { transform: scale(1); opacity: 1; }
+.lightbox-panel img { display: block; width: 100%; height: auto; max-height: 56vh; object-fit: contain; background: #000; }
+.lightbox-caption { padding: var(--space-4) var(--space-6); font-size: 0.85rem; color: var(--text-muted); border-top: 1px solid var(--border); }
+.lightbox-actions { display: flex; gap: var(--space-3); padding: var(--space-3) var(--space-6); border-top: 1px solid var(--border); justify-content: flex-end; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lightbox,
+  .lightbox-panel { transition-duration: 0.01ms !important; }
+  .lightbox-panel { transform: scale(1); opacity: 1; }
+}
+
+/* ---------- Toast — functional slide down ---------- */
+.toast {
+  position: fixed; top: var(--space-5); left: 50%; transform: translateX(-50%) translateY(-100%);
+  background: var(--surface); color: var(--text-primary);
+  padding: var(--space-3) var(--space-5); border-radius: var(--radius-lg);
+  font-size: 0.875rem; z-index: 100; opacity: 0; pointer-events: none;
+  transition: opacity var(--trans), transform var(--trans); white-space: nowrap;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  display: flex; align-items: center; gap: var(--space-3);
+  min-width: 280px; max-width: 90vw;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+
+/* Toast variants — status colors only on badges/edges */
+.toast.success { border-left: 3px solid var(--ok); }
+.toast.error { border-left: 3px solid var(--err); }
+.toast.info { border-left: 3px solid var(--brand); }
+.toast .toast-icon { width: 20px; height: 20px; flex-shrink: 0; }
+.toast .toast-message { flex: 1; font-size: 0.875rem; }
+.toast .toast-action { flex-shrink: 0; }
+.toast .btn { padding: var(--space-1) var(--space-3); font-size: 0.75rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition-duration: 0.01ms !important; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+}
 
 /* ---------- Mobile ---------- */
-@media (max-width:768px){
-  body{padding:0}
-  .app-body{margin-left:0}
-  .sidebar{transform:translateX(-100%)}
-  .sidebar.open{transform:translateX(0)}
-  .nav-toggle{display:block}
-  .wrap{padding:16px}
-  .grid-4{grid-template-columns:1fr 1fr}
-  .cases-table{font-size:0.75rem}
-  .cases-table th,.cases-table td{padding:8px}
-  .detail{display:none}
-  .cfg-item{flex-direction:column;align-items:flex-start}
-  .cfg-item label{min-width:unset;width:100%}
-  .cfg-item .pwd-toggle{margin-left:0;margin-top:4px}
-  .lightbox-panel{max-width:96vw}
-  .header-actions,.topbar-title{display:none}
+@media (max-width: 768px) {
+  .workspace { padding: var(--space-5) var(--space-3); }
+  .topbar { padding: 0 var(--space-4); height: 56px; }
+  .topbar-center { display: none; }
+  .status-pill { font-size: 0.7rem; padding: var(--space-1) var(--space-3); }  /* 0.7rem */
+  .card { border-radius: var(--radius-lg); }
+  .card-body { padding: var(--space-4); }
 }
 
-/* ---------- Desktop ---------- */
-@media (min-width:769px){
-  .sidebar{transform:translateX(0)}
-  .app-body{margin-left:240px}
-  /* Desktop sidebar: ☰ toggle button shown, sidebar can be collapsed/expanded */
-  .nav-toggle{display:block}
+/* ---------- Focus ring & accessibility — brand ONLY on focus ring ---------- */
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+button[disabled], input[disabled] { opacity: 0.6; cursor: not-allowed; }
+
+/* ========================================================================
+   INTERACTION STATE MATRIX — Loading / Empty / Error / Success / Partial
+   ======================================================================== */
+
+/* ---------- Skeleton loading states — neutral, no brand-tint shimmer ---------- */
+.skeleton {
+  background: linear-gradient(90deg, var(--border) 25%, var(--surface) 50%, var(--border) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-sm);
 }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; background: var(--border); }
+  .btn.loading::after { animation: none; border-top-color: var(--text-inverse); }
+  .status-pill .dot, .badge .dot { animation: none; }
+  .running-badge .dot { animation: none; }
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+.skeleton-card {
+  height: 120px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.skeleton-stat { height: 32px; width: 60%; border-radius: var(--radius-md); }
+.skeleton-rate { height: 28px; width: 40%; border-radius: var(--radius-md); }
+.skeleton-row { height: 48px; }
+.skeleton-cell { height: 16px; border-radius: var(--radius-sm); }
+.skeleton-badge { height: 20px; width: 70px; border-radius: var(--radius-pill); }
+.skeleton-report-card { height: 180px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--surface); }
+
+/* ---------- Empty states — functional ---------- */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--text-muted);
+  gap: var(--space-4);
+}
+.empty-state svg { width: 48px; height: 48px; opacity: 0.5; color: var(--text-muted); }
+.empty-state h3 { font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin: 0; }
+.empty-state p { max-width: 320px; margin: 0; font-size: 0.875rem; line-height: 1.5; }
+.empty-state .empty-action { margin-top: var(--space-2); }
+
+/* ---------- Inline validation errors ---------- */
+.input-error { border-color: var(--err) !important; background: var(--err-bg); }
+.input-error:focus { box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15); }
+.error-message {
+  display: flex; align-items: center; gap: var(--space-2);
+  font-size: 0.7rem; color: var(--err); margin-top: var(--space-1);
+}
+.error-message svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* ---------- Toast variants — status colors only on left border ---------- */
+.toast {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  min-width: 280px; max-width: 90vw;
+  box-shadow: var(--shadow-lg);
+}
+.toast.success { background: var(--surface); color: var(--text-primary); border: 1px solid var(--border); border-left: 3px solid var(--ok); }
+.toast.error { background: var(--surface); color: var(--text-primary); border: 1px solid var(--border); border-left: 3px solid var(--err); }
+.toast.info { background: var(--surface); color: var(--text-primary); border: 1px solid var(--border); border-left: 3px solid var(--brand); }
+.toast .toast-icon { width: 20px; height: 20px; flex-shrink: 0; }
+.toast .toast-message { flex: 1; font-size: 0.875rem; }
+.toast .toast-action { flex-shrink: 0; }
+.toast .btn { padding: var(--space-1) var(--space-3); font-size: 0.75rem; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+
+/* ---------- Success badge (auto-dismiss) — no animation flair ---------- */
+.saved-badge {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: 0.7rem; font-weight: 600;
+  opacity: 0;
+}
+@keyframes badgeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes badgeOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) {
+  .saved-badge { animation: none; opacity: 1; }
+}
+
+/* ---------- Running count badge — static dot, NO pulse ---------- */
+.running-badge {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--brand-tint); color: var(--brand);
+  font-size: 0.7rem; font-weight: 600;
+}
+.running-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--brand); }
+
+/* ---------- Touch targets ≥44px ---------- */
+@media (pointer: coarse) {
+  .btn, .nav-tab, .theme-btn, .seg-item, .toggle, .btn-reboot,
+  .lightbox-close, .toast .btn, .pwd-toggle, .cfg-item button,
+  table.clients button, .empty-state .btn, .empty-functional .btn { min-height: 44px; min-width: 44px; }
+  .toggle { width: 52px; height: 28px; }
+  .toggle-slider:before { height: 22px; width: 22px; left: 3px; bottom: 3px; }
+  input:checked + .toggle-slider:before { transform: translateX(28px); }
+}
+
+/* ---------- Lightbox loading / error states ---------- */
+.lightbox-panel.loading::before {
+  content: ''; position: absolute; inset: 0;
+  background: rgba(0,0,0,0.7); z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+}
+.lightbox-panel.loading::after {
+  content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.2);
+  border-top-color: var(--brand); border-radius: 50%;
+  animation: spin 0.8s linear infinite; z-index: 11;
+}
+.lightbox-panel.error { position: relative; }
+.lightbox-panel.error .lightbox-error {
+  position: absolute; inset: 0; background: rgba(0,0,0,0.8);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--space-4); padding: var(--space-6); z-index: 10; text-align: center;
+}
+.lightbox-panel.error .lightbox-error svg { width: 48px; height: 48px; color: var(--err); }
+.lightbox-panel.error .lightbox-error h3 { color: var(--text-inverse); margin: 0; }
+.lightbox-panel.error .lightbox-error p { color: var(--text-muted); max-width: 280px; margin: 0; }
+.lightbox-panel.error img { display: none; }
+
+/* ---------- Card loading overlay ---------- */
+.card.loading { position: relative; pointer-events: none; }
+.card.loading::before {
+  content: ''; position: absolute; inset: 0;
+  background: rgba(255,255,255,0.7);
+  border-radius: inherit; z-index: 5;
+}
+.card.loading::after {
+  content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  width: 28px; height: 28px; border: 2px solid var(--border);
+  border-top-color: var(--brand); border-radius: 50%;
+  animation: spin 0.8s linear infinite; z-index: 6;
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.loading::after { animation: none; border-top-color: var(--brand); }
+}
+
+/* ---------- Focus visible enhancements for all interactive ---------- */
+button:focus-visible, .nav-tab:focus-visible, .theme-btn:focus-visible,
+.seg-item:focus-visible, .toggle:focus-visible, .btn-reboot:focus-visible,
+.lightbox-close:focus-visible, .pwd-toggle:focus-visible,
+table.clients button:focus-visible, .empty-state .btn:focus-visible,
+.empty-functional .btn:focus-visible {
+  outline: 2px solid var(--brand); outline-offset: 2px;
+}
+
+/* ---------- Disabled state uniformity ---------- */
+.btn[disabled], .nav-tab[disabled], .theme-btn[disabled], .seg-item[disabled],
+.toggle[disabled], .btn-reboot[disabled], .pwd-toggle[disabled],
+table.clients button[disabled] {
+  opacity: 0.55; cursor: not-allowed; pointer-events: none;
+}
+
+/* ---------- Progress ring for running state — brand stroke only ---------- */
+.progress-ring {
+  width: 20px; height: 20px; transform: rotate(-90deg);
+}
+.progress-ring-bg { fill: none; stroke: var(--border); stroke-width: 3; }
+.progress-ring-fg {
+  fill: none; stroke: var(--brand); stroke-width: 3; stroke-linecap: round;
+  stroke-dasharray: 56.52; stroke-dashoffset: 56.52;
+  animation: progressRing 1.2s linear infinite;
+}
+@keyframes progressRing { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) { .progress-ring-fg { animation: none; stroke-dashoffset: 0; } }
+
 </style>
 </head>
 <body>
-<div class='app'>
-  <aside class='sidebar' id='sidebar'>
-    <div class='sidebar-brand'>
-      <div class='brand-mark'>⚡</div>
-      <div class='brand-text'>ATP<small>Automation Test Platform</small></div>
-    </div>
-    <nav class='sidebar-nav'>
-      <a class='nav-item active' data-view='dashboard' onclick='navigate(event, this)'><span class='nav-icon'>📊</span><span class='nav-label'>Overview</span></a>
-      <a class='nav-item' data-view='config' onclick='navigate(event, this)'><span class='nav-icon'>⚙️</span><span class='nav-label'>Configuration</span></a>
-      <a class='nav-item' data-view='board' onclick='navigate(event, this)'><span class='nav-icon'>📋</span><span class='nav-label'>Test Board</span></a>
-      <a class='nav-item' data-view='reports' onclick='navigate(event, this)'><span class='nav-icon'>📷</span><span class='nav-label'>Reports & Screenshots</span></a>
-    </nav>
-    <div class='sidebar-footer'>
-      <div class='sidebar-version'>TP-Link ATP · Web UI</div>
-      <div class='sidebar-hint'>Screenshot red box highlight: fill in <code>case_highlights</code> in config</div>
-    </div>
-  </aside>
-  <div class='sidebar-overlay' id='sidebar-overlay' onclick='closeSidebar()'></div>
+<script>
+/* ---------- Zero-flicker 3-state theme (Light / Dark / System) ---------- */
+(function(){
+  const KEY = 'atp-theme';
+  const html = document.documentElement;
+  const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
 
-  <div class='app-body'>
-    <header class='topbar'>
-      <button class='nav-toggle' id='nav-toggle' onclick='toggleSidebar()'>☰</button>
-      <div class='topbar-title'>
-        <span id='view-title'>Overview</span>
-        <span class='topbar-divider'>·</span>
-        <span class='topbar-sub' id='view-sub'>Test case execution status and quick actions</span>
+  function apply(theme) {
+    if (theme === 'system') {
+      html.setAttribute('data-theme', systemDark.matches ? 'dark' : '');
+    } else {
+      html.setAttribute('data-theme', theme === 'dark' ? 'dark' : '');
+    }
+  }
+  function save(theme) { try { localStorage.setItem(KEY, theme); } catch(e) {} }
+  function current() { try { return localStorage.getItem(KEY) || 'light'; } catch(e) { return 'light'; } }
+
+  // Apply before any visible paint to avoid flash
+  apply(current());
+
+  systemDark.addEventListener('change', () => {
+    if (current() === 'system') apply('system');
+  });
+
+  window.__atpTheme = {
+    get: current,
+    set: function(theme){ apply(theme); save(theme); },
+    toggleToSystem: function(){ apply('system'); save('system'); }
+  };
+})();
+</script>
+
+<div class="app">
+  <!-- ========================================================================
+       STEP 1 LAND + STEP 2 ORIENT + STEP 7 ARCHIVE
+       Topbar: persistent orientation + global actions
+       - Brand/logo → instant product recognition
+       - Nav tabs (Overview, Test Board, Reports, Config) → Step 7: Reports tab entry
+       - Status pill (#net-pill) → Step 1: "Online" green pill = confidence
+       - Theme switcher → preference persistence (localStorage)
+       - Reboot button → emergency action, confirm dialog prevents accidents
+       ======================================================================== -->
+  <!-- Solid top navbar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="TP-Link brand" aria-hidden="true">
+          <path d="M2 12h20M12 2v20"/>
+          <circle cx="12" cy="12" r="6"/>
+        </svg>
+        <div>
+          <div style="font-weight:700; color:var(--text-primary)">ATP</div>
+          <div class="model">Archer / Deco · Management Console</div>
+        </div>
       </div>
-      <div class='topbar-right'>
-        <span class='busy-chip' id='busy-chip'><span class='busy-dot'></span>Running…</span>
-        <button class='btn ghost' id='btn-refresh' onclick='refresh()'>Refresh</button>
-        <button class='btn success' id='btn-save' onclick='saveConfig()'>Save Config</button>
+    </div>
+
+    <div class="topbar-center">
+      <div class="nav-tabs" role="tablist" aria-label="Main navigation">
+        <button class="nav-tab active" role="tab" aria-selected="true" onclick="navigate(event,'dashboard')">Overview</button>
+        <button class="nav-tab" role="tab" aria-selected="false" onclick="navigate(event,'board')">Test Board</button>
+        <button class="nav-tab" role="tab" aria-selected="false" onclick="navigate(event,'reports')">Reports</button>
+        <button class="nav-tab" role="tab" aria-selected="false" onclick="navigate(event,'config')">Configuration</button>
       </div>
+    </div>
+
+    <div class="topbar-right">
+      <div class="status-pill" id="net-pill" role="status" aria-live="polite">
+        <span class="dot" aria-hidden="true"></span>
+        <span id="net-text">Checking&hellip;</span>
+      </div>
+      <div class="theme-seg" role="radiogroup" aria-label="Theme">
+        <button class="theme-btn active" role="radio" aria-checked="true" onclick="setTheme('light')" title="Light">Light</button>
+        <button class="theme-btn" role="radio" aria-checked="false" onclick="setTheme('dark')" title="Dark">Dark</button>
+        <button class="theme-btn" role="radio" aria-checked="false" onclick="setTheme('system')" title="System">System</button>
+      </div>
+      <button class="btn-reboot" onclick="rebootRouter()" title="Quick reboot">⟳ Reboot</button>
+    </div>
+  </header>
+
+  <!-- ========================================================================
+       STEP 1 LAND + STEP 2 ORIENT
+       Main workspace: Bento card grid — first visual scan
+       ======================================================================== -->
+  <!-- Main workspace: Bento card grid -->
+  <main class="workspace">
+    <div class="bento bento-3">
+      <!-- ========================================================================
+           STEP 1 LAND + STEP 2 ORIENT
+           Network Topology Hero (.bento-1 full-width)
+           - Clean SVG nodes + labeled edges, real latency numbers
+           - Static connectors, no animation
+           - Emotional goal: "In control" — mental model formed in <10s
+           ======================================================================== -->
+      <!-- Network Topology Hero -->
+      <section class="card bento-1" id="card-topology">
+        <header>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px;color:var(--brand)"><path d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9"/><circle cx="12" cy="12" r="2"/></svg>
+          <div class="card-title">Network Topology</div>
+        </header>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:var(--space-5)">
+          <div class="topo-row">
+            <span class="topo-node topo-node--err" aria-hidden="true">WAN</span>
+            <span class="topo-label">Internet</span>
+          </div>
+          <div class="topo-connector">
+            <span class="topo-latency" id="latency-wan">—</span>
+          </div>
+          <div class="topo-row">
+            <span class="topo-node topo-node--ok" aria-hidden="true">RT</span>
+            <span class="topo-label">Main Router · Archer</span>
+          </div>
+          <div class="topo-connector topo-connector--active">
+            <span class="topo-latency" id="latency-router">—</span>
+          </div>
+          <div class="topo-row">
+            <span class="topo-node topo-node--muted" aria-hidden="true">CL</span>
+            <span class="topo-label" id="topo-clients">Clients: —</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Telemetry & Quick Toggles -->
+      <section class="card bento-2" id="card-telemetry">
+        <header>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px;color:var(--brand)"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <div class="card-title">Telemetry</div>
+        </header>
+        <div class="card-body" id="telemetry-body" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
+          <div class="stat">
+            <div class="label label-secondary">Downlink</div>
+            <div class="rate"><span class="num metric-primary" id="rate-down">—</span><span class="unit">Mbps</span></div>
+          </div>
+          <div class="stat">
+            <div class="label label-secondary">Uplink</div>
+            <div class="rate"><span class="num metric-primary" id="rate-up">—</span><span class="unit">Mbps</span></div>
+          </div>
+        </div>
+        <div style="padding:0 var(--space-5) var(--space-5);border-top:1px solid var(--border)">
+          <div class="seg" style="margin-bottom:var(--space-4)">
+            <button class="seg-item active" onclick="setBand('2.4')" title="2.4 GHz">2.4GHz</button>
+            <button class="seg-item" onclick="setBand('5')" title="5 GHz">5GHz</button>
+            <button class="seg-item" onclick="setBand('6')" title="6 GHz">6GHz</button>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)">
+            <label style="font-size:0.7rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.08em">Guest Network</label>
+            <button class="toggle" role="switch" aria-checked="false" onclick="toggleSwitch(this)">
+              <input type="checkbox" role="switch" aria-checked="false"/>
+              <span class="toggle-slider"></span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================
+           STEP 3 SELECT + STEP 4 WAIT/MONITOR
+           Overview stat tiles (.bento-3) — progress + CTA feedback loop
+           - Total/Pass/Fail counts → live from renderStats()
+           - Progress bar (#stat-progress) + % label (#stat-pct) → Step 4: live advance
+           - Primary CTA buttons (Run All / Stage 1–5) rendered by renderConfig()
+             → Step 3: click → toast + btn-loading state + busy=true + poll()
+           - Emotional goal: "Empowered" (click) → "Informed, not anxious" (watch)
+           ======================================================================== -->
+      <!-- Stat tiles row -->
+      <section class="card bento-3" id="card-stats">
+        <header>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px;color:var(--brand)"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M3 9h18M9 21V9"/></svg>
+          <div class="card-title">Overview</div>
+        </header>
+        <div class="card-body" id="stats-body" style="display:flex;flex-direction:column;gap:var(--space-4)">
+          <div class="stat">
+            <div class="label label-secondary">Total Cases</div>
+            <div class="value metric-primary" id="stat-total">-</div>
+          </div>
+          <div class="stat">
+            <div class="label label-secondary">Passed</div>
+            <div class="value metric-primary" id="stat-pass" style="color:var(--ok)">-</div>
+          </div>
+          <div class="stat">
+            <div class="label label-secondary">Failed</div>
+            <div class="value metric-primary" id="stat-fail" style="color:var(--err)">-</div>
+          </div>
+          <div class="stat">
+            <div class="label label-secondary">Progress</div>
+            <div style="display:flex;align-items:center;gap:var(--space-3)">
+              <div class="value metric-primary" id="stat-pct">0%</div>
+              <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+                <div id="stat-progress" class="progress-bar" style="height:100%;background:var(--brand);width:0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ========================================================================
+         STEP 4 WAIT/MONITOR + STEP 5 INSPECT PASS + STEP 6 INSPECT FAIL
+         Client/Test table (full-width .bento-1) — evidence + action surface
+         - Rows: Case ID, Title, Stage, Status badge, Downlink/Uplink, Actions
+         - Status badges update in-place every 3s (polling) → Step 4
+         - Thumbnail links → openLightbox() → Step 5: lightbox with highlights
+         - FAIL rows show "Retry" (destructive btn) → Step 6: runOne() → back to Step 4
+         - PASS rows show "Run again" + thumbnail gallery (🖼 btn)
+         - Emotional goals: "Informed" (live badges) → "Validated" (lightbox) → "Agency" (retry)
+         ======================================================================== -->
+    <!-- Client table (full width) -->
+    <section class="card bento-1" id="card-clients" style="margin-top:var(--space-6)">
+      <header>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px;color:var(--brand)"><circle cx="12" cy="5" r="1"/><circle cx="6" cy="12" r="1"/><circle cx="18" cy="12" r="1"/><line x1="12" y1="5" x2="12" y2="9"/><line x1="6" y1="12" x2="6" y2="16"/><line x1="18" y1="12" x2="18" y2="16"/></svg>
+        <div class="card-title">Connected Clients</div>
+        <span class="badge" id="client-count" style="margin-left:auto">0 devices</span>
+      </header>
+      <div class="card-body" style="padding:0 var(--space-6) var(--space-6)">
+        <div style="overflow:auto">
+          <table class="clients" id="client-table">
+            <thead>
+              <tr>
+                <th>Device</th><th>IP</th><th>Band</th><th>Status</th><th>Downlink</th><th>Uplink</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="client-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Reports section (shown on Reports tab) -->
+  <section class="card bento-1" id="card-reports" style="margin-top:var(--space-6);display:none">
+    <header>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px;color:var(--brand)"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <div class="card-title">Reports</div>
+      <button class="btn ghost small" onclick="loadReports()" aria-label="Refresh reports" style="margin-left:auto">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      </button>
     </header>
+    <div class="card-body" id="reports-body" style="padding:var(--space-6)">
+      <div id="reports-grid-inline"></div>
+    </div>
+  </section>
 
-    <main class='wrap' id='wrap'>
-
-      <!-- Dashboard -->
-      <section class='view active' id='view-dashboard'>
-        <header class='page-header' style='margin-bottom:16px'>
-          <h1 class='page-title' style='font-size:1.25rem;font-weight:800;color:var(--color-text);letter-spacing:-.02em'>TP-Link ATP Automation Test Platform</h1>
-          <p class='page-desc' style='font-size:0.85rem;color:var(--color-text-muted);margin-top:4px'>Test case execution status, progress and quick start</p>
-        </header>
-        <div class='grid grid-4'>
-          <div class='stat-card total'><div class='stat-value' id='stat-total'>-</div><div class='stat-label'>Total Test Cases</div></div>
-          <div class='stat-card pass'><div class='stat-value' id='stat-pass'>-</div><div class='stat-label'>Passed</div></div>
-          <div class='stat-card fail'><div class='stat-value' id='stat-fail'>-</div><div class='stat-label'>Failed</div></div>
-          <div class='stat-card todo'><div class='stat-value' id='stat-todo'>-</div><div class='stat-label'>Pending / Running</div></div>
-        </div>
-        <div class='grid grid-4' style='margin-top:16px'>
-          <div class='stat-card total'>
-            <div style='display:flex;align-items:center;justify-content:space-between'>
-              <div>
-                <div class='stat-label'>Gateway Device</div>
-                <div class='stat-value' id='stat-gateway'>-</div>
-              </div>
-              <span class='status PENDING dot'>Not Connected</span>
-            </div>
-          </div>
-          <div class='stat-card pass'>
-            <div style='display:flex;align-items:center;justify-content:space-between'>
-              <div>
-                <div class='stat-label'>Online AP</div>
-                <div class='stat-value' id='stat-ap'>-</div>
-              </div>
-              <span class='status PENDING dot'>Unknown</span>
-            </div>
-          </div>
-          <div class='stat-card fail'>
-            <div style='display:flex;align-items:center;justify-content:space-between'>
-              <div>
-                <div class='stat-label'>Offline Devices</div>
-                <div class='stat-value' id='stat-offline'>-</div>
-              </div>
-              <span class='status PENDING dot'>Unknown</span>
-            </div>
-          </div>
-          <div class='stat-card todo'>
-            <div style='display:flex;align-items:center;justify-content:space-between'>
-              <div>
-                <div class='stat-label'>Pending Collection</div>
-                <div class='stat-value' id='stat-pending'>-</div>
-              </div>
-              <span class='status PENDING dot'>Unknown</span>
-            </div>
-          </div>
-        </div>
-        <div class='grid grid-2'>
-          <div class='card'>
-            <div class='card-header'><span class='card-title'>Execution Progress</span></div>
-            <div class='card-body'>
-              <div class='progress'><div id='progress-bar' class='progress-bar'></div></div>
-              <div class='progress-text' id='progress-text'>Ready</div>
-            </div>
-          </div>
-          <div class='card'>
-            <div class='card-header'><span class='card-title'>Quick Start</span></div>
-            <div class='card-body'>
-              <div class='runbar'>
-                <button class='btn success' id='btn-run-all-dashboard' onclick='runStage(event, "all")'>Run All</button>
-              </div>
-              <div class='stage-pills' style='margin-top:8px'>
-                <button class='btn ghost' onclick='runStage(event, "1")'>Stage 1</button>
-                <button class='btn ghost' onclick='runStage(event, "2")'>Stage 2</button>
-                <button class='btn ghost' onclick='runStage(event, "3")'>Stage 3</button>
-                <button class='btn ghost' onclick='runStage(event, "4")'>Stage 4</button>
-                <button class='btn ghost' onclick='runStage(event, "5")'>Stage 5</button>
-              </div>
-              <p class='hint'>After case execution passes, screenshots are auto-saved to <code>reports/</code>; fill in <code>case_highlights</code> on config page to red-box highlight key buttons/elements on final pass screenshot.</p>
-            </div>
-          </div>
-        </div>
-        <div class='card' style='margin-top:16px'>
-          <div class='card-header'><span class='card-title'>Recent Cases</span></div>
-          <div class='card-body'>
-            <table class='cases-table compact' id='recent-table'>
-              <thead>
-                <tr><th style='width:70px'>Case</th><th>Title</th><th style='width:70px'>Stage</th><th style='width:110px'>Status</th><th style='width:260px'>Details</th><th style='width:120px'>Screenshots</th><th style='width:130px'>Actions</th></tr>
-              </thead>
-              <tbody id='recent-table-body'></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- Config -->
-      <section class='view' id='view-config'>
-        <header class='page-header' style='margin-bottom:16px'>
-          <h2 class='page-title' style='font-size:1.15rem;font-weight:800;color:var(--color-text);letter-spacing:-.01em'>Configuration</h2>
-          <p class='page-desc' style='font-size:0.85rem;color:var(--color-text-muted);margin-top:4px'>Gateway, credentials, wireless and behavior parameters; click "Save Config" to write to config.json</p>
-        </header>
-        <div class='grid grid-2'>
-          <div class='card'>
-            <div class='card-header'>
-              <span class='card-title'>🌐 Gateway Settings <span class='group-badge'>gateway</span></span>
-            </div>
-            <div class='card-body'><div class='cfg-group' id='cfg-gateway'></div></div>
-          </div>
-          <div class='card'>
-            <div class='card-header'>
-              <span class='card-title'>🔑 Login Credentials <span class='group-badge'>credentials</span></span>
-            </div>
-            <div class='card-body'><div class='cfg-group' id='cfg-credentials'></div></div>
-          </div>
-          <div class='card'>
-            <div class='card-header'>
-              <span class='card-title'>📶 Wireless Settings <span class='group-badge'>wifi</span></span>
-            </div>
-            <div class='card-body'><div class='cfg-group' id='cfg-wifi'></div></div>
-          </div>
-          <div class='card'>
-            <div class='card-header'>
-              <span class='card-title'>🧪 Test Behavior <span class='group-badge'>behavior</span></span>
-            </div>
-            <div class='card-body'><div class='cfg-group' id='cfg-behavior'></div></div>
-          </div>
-        </div>
-        <div class='card' style='margin-top:16px'>
-          <div class='card-header'>
-            <span class='card-title'>📷 Screenshot Red Box Highlight Selector <span class='badge' style='background:#eef4fb;color:var(--color-success)'>case_highlights</span></span>
-          </div>
-          <div class='card-body'>
-            <p class='hint'>Key is case ID, value is CSS selector list to draw red box on final pass screenshot. Example: {'1.1': ['#login-btn', 'text=Basic']}, selector related to router model (Omada / traditional SMB UI), silently skipped if no match.</p>
-            <div class='field' style='margin-top:10px'>
-              <textarea id='hl-editor' rows='6' style='width:100%;padding:10px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface);font-family:ui-monospace,Consolas,monospace;font-size:0.8rem;resize:vertical;color:var(--color-text)'></textarea>
-            </div>
-            <p class='hint'>After modification, click "Save Config" at top to persist; takes effect when subsequent cases pass after saving.</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- Test board -->
-      <section class='view' id='view-board'>
-        <header class='page-header' style='margin-bottom:16px'>
-          <h2 class='page-title' style='font-size:1.15rem;font-weight:800;color:var(--color-text);letter-spacing:-.01em'>Test Board</h2>
-          <p class='page-desc' style='font-size:0.85rem;color:var(--color-text-muted);margin-top:4px'>Case list sorted by Stage; click thumbnail to view large image, red box marks key elements in auto-pass screenshots</p>
-        </header>
-        <div class='runbar' style='margin-bottom:0'>
-          <button class='btn success' id='btn-run-all-board' onclick='runStage(event, "all")'>Run All</button>
-          <div class='stage-pills' style='margin-left:8px'>
-            <button class='btn ghost' onclick='runStage(event, "1")'>Stage 1</button>
-            <button class='btn ghost' onclick='runStage(event, "2")'>Stage 2</button>
-            <button class='btn ghost' onclick='runStage(event, "3")'>Stage 3</button>
-            <button class='btn ghost' onclick='runStage(event, "4")'>Stage 4</button>
-            <button class='btn ghost' onclick='runStage(event, "5")'>Stage 5</button>
-          </div>
-          <button class='btn ghost small' onclick='refresh()'>Refresh Status</button>
-        </div>
-        <div class='card' style='margin-top:14px'>
-          <div class='card-body'>
-            <table class='cases-table'>
-              <thead>
-                <tr>
-                  <th style='width:70px'>Case</th><th>Title</th><th style='width:70px'>Stage</th>
-                  <th style='width:110px'>Status</th><th style='width:280px'>Details</th>
-                  <th style='width:120px'>Duration</th><th style='width:110px'>Screenshots</th><th style='width:150px'>Actions</th>
-                </tr>
-              </thead>
-              <tbody id='tbl-body'></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- Reports / gallery -->
-      <section class='view' id='view-reports'>
-        <header class='page-header' style='margin-bottom:16px'>
-          <h2 class='page-title' style='font-size:1.15rem;font-weight:800;color:var(--color-text);letter-spacing:-.01em'>Reports & Screenshots</h2>
-          <p class='page-desc' style='font-size:0.85rem;color:var(--color-text-muted);margin-top:4px'>Historical report directory and screenshot library; click screenshot to view large image</p>
-        </header>
-        <div id='reports-grid' class='reports-grid'></div>
-      </section>
-
-    </main>
-  </div>
+  <!-- Configuration section (shown on Config tab) -->
+  <section class="card bento-1" id="card-config" style="margin-top:var(--space-6);display:none">
+    <header>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px;color:var(--brand)"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      <div class="card-title">Configuration</div>
+    </header>
+    <div class="card-body" id="config-body" style="padding:var(--space-6)">
+      <div style="display:grid;gap:var(--space-6)">
+        <div id="cfg-gateway"></div>
+        <div id="cfg-credentials"></div>
+        <div id="cfg-wifi"></div>
+        <div id="cfg-behavior"></div>
+      </div>
+      <div style="margin-top:var(--space-6);padding-top:var(--space-6);border-top:1px solid var(--border)">
+        <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-muted);margin-bottom:var(--space-2)">Case Highlights (JSON)</label>
+        <textarea id="hl-editor" class="mono-sm" style="width:100%;min-height:120px;padding:var(--space-3);border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text-primary);font-family:var(--font-mono);resize:vertical"></textarea>
+        <div id="hl-editor-error" class="error-message" style="display:none" aria-live="polite"></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:var(--space-3);margin-top:var(--space-6)">
+        <button class="btn ghost" onclick="load()">Discard</button>
+        <button class="btn primary" id="btn-save" onclick="saveConfig()">Save Configuration</button>
+      </div>
+    </div>
+  </section>
 </div>
 
-<div class='lightbox' id='lightbox'>
-  <button class='lightbox-close' onclick='closeLightbox()'>×</button>
-  <div class='lightbox-stage' onclick='closeLightbox()'>
-    <div class='lightbox-panel' onclick='event.stopPropagation()'>
-      <img id='lightbox-img' src='' alt=''>
-      <div class='lightbox-caption' id='lightbox-caption'></div>
-      <div class='lightbox-actions'>
-        <button class='btn ghost small' onclick='openInNewTab()'>Open in New Tab</button>
-        <button class='btn ghost small' onclick='closeLightbox()'>Close</button>
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" aria-hidden="true" role="dialog" aria-modal="true">
+  <button class="lightbox-close" onclick="closeLightbox()" aria-label="Close">×</button>
+  <div class="lightbox-stage" onclick="closeLightbox()">
+    <div class="lightbox-panel" id="lightbox-panel" onclick="event.stopPropagation()">
+      <img id="lightbox-img" src="" alt="">
+      <div class="lightbox-caption" id="lightbox-caption"></div>
+      <div class="lightbox-actions">
+        <button class="btn ghost small" onclick="openInNewTab()">Open in New Tab</button>
+        <button class="btn ghost small" onclick="closeLightbox()">Close</button>
       </div>
+      <div class="lightbox-error" style="display:none" aria-live="polite"></div>
     </div>
   </div>
 </div>
 
-<div id='toast' class='toast'></div>
+<!-- Toast -->
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script>
+/* ========================================================================
+   TP-Link ATP — Business logic with complete Interaction State Matrix
+   All Flask API contracts unchanged:
+   GET  /api/state        -> {cases, config{...case_highlights...}, progress}
+   POST /api/config       -> body {ok}
+   POST /api/run          -> body {stage|case, config} -> {ok}
+   GET  /screenshot/<p>   -> image
+   GET  /api/reports      -> {reports:[{name,path,summary,screenshots,file_count}]}
+   ======================================================================== */
+
+/* ---------- Theme public API (bound to UI buttons) ---------- */
+function setTheme(t){ window.__atpTheme.set(t); syncThemeUI(); }
+function setBand(b){ /* band segment visual only; persists in cfg if desired later */ }
+function toggleSwitch(btn){
+  const input = btn.querySelector('input');
+  const checked = input.checked;
+  input.checked = !checked;
+  input.setAttribute('aria-checked', input.checked);
+  btn.setAttribute('aria-checked', input.checked);
+  toast(input.checked ? 'Guest Network enabled' : 'Guest Network disabled', 'info');
+}
+function rebootRouter(){
+  if(!confirm('Confirm quick reboot? This will interrupt the router and may fail in-progress cases.')) return;
+  const btn = event && event.currentTarget;
+  const orig = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.classList.add('btn-loading'); }
+  fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stage:'5',config:cfg})})
+    .then(r=>r.json()).then(d=>{
+      toast(d.ok ? 'Reboot command submitted' : (d.error||'Reboot failed'), d.ok ? 'success' : 'error');
+    }).catch(()=>toast('Reboot failed', 'error'))
+    .finally(()=>{ if(btn){ btn.disabled=false; btn.classList.remove('btn-loading'); btn.textContent=orig||'Reboot'; } });
+}
+
+/* sync segmented theme UI active states */
+function syncThemeUI(){
+  const t = window.__atpTheme.get();
+  document.querySelectorAll('.theme-btn').forEach(b=>{
+    b.classList.remove('active');
+    b.setAttribute('aria-checked','false');
+  });
+  const active = document.querySelector('.theme-btn[onclick="setTheme(\\''+t+'\\')"]') ||
+                 document.querySelector('.theme-btn:nth-child'+(t==='system'?':nth-child(3)':t==='dark'?':nth-child(2)':':nth-child(1)'));
+  if(active){ active.classList.add('active'); active.setAttribute('aria-checked','true'); }
+}
+
 /* ---------- Test case local metadata (aligned with atp_web.py CASES) ---------- */
 const CASE_META = {
   '1.1':  {title:'Login Test (admin/superadmin)', stage:'1'},
@@ -642,76 +1279,122 @@ let reports = [];
 let pollTimer = null;
 let busy = false;
 let activeView = 'dashboard';
+let lastLoadError = null;
 
 /* ---------- Utils ---------- */
 function $(sel){return document.querySelector(sel)}
-function toast(msg){
-  const t=$('#toast'); t.textContent=msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2500);
+function $$(sel){return document.querySelectorAll(sel)}
+
+function toast(msg, type = 'info', action = null) {
+  const t = $('#toast');
+  t.className = 'toast ' + type;
+  t.innerHTML = '';
+  
+  const iconMap = {
+    success: '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+    error: '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+    info: '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+  };
+  
+  t.innerHTML = iconMap[type] + '<span class="toast-message">' + esc(msg) + '</span>';
+  
+  if (action) {
+    const actionBtn = document.createElement('button');
+    actionBtn.className = 'btn ghost';
+    actionBtn.textContent = action.label;
+    actionBtn.onclick = () => { action.callback(); t.classList.remove('show'); };
+    t.appendChild(actionBtn);
+  }
+  
+  t.classList.add('show');
+  if (type !== 'error' || !action) {
+    setTimeout(()=>t.classList.remove('show'), type === 'error' ? 5000 : 3000);
+  }
 }
-function esc(s){return String(s===''||s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+function esc(s){return String(s===''||s==null?'':s).replace(/[&<>\\\\\\\"]/g,c=>({'&':'&','<':'<','>':'>','\\\\\\\"':'\"'}[c]))}
 function statusMap(s){
   const m={PASS:'Passed',FAIL:'Failed',PENDING:'Pending',RUNNING:'Running',SKIP:'Skipped'};
   return m[s]||s;
 }
 
+/* ---------- Skeleton generators ---------- */
+function renderSkeletonCards(count = 3) {
+  return Array(count).fill(0).map(() => '<div class="skeleton-card"></div>').join('');
+}
+function renderSkeletonStats() {
+  return Array(4).fill(0).map(() => '<div class="skeleton skeleton-stat"></div>').join('');
+}
+function renderSkeletonRates() {
+  return Array(2).fill(0).map(() => '<div class="skeleton skeleton-rate"></div>').join('');
+}
+function renderSkeletonRows(count = 5) {
+  return Array(count).fill(0).map(() => `
+    <tr class="skeleton-row">
+      <td><div class="skeleton skeleton-cell" style="width:80px"></div></td>
+      <td><div class="skeleton skeleton-cell" style="width:120px"></div></td>
+      <td><div class="skeleton skeleton-badge"></div></td>
+      <td><div class="skeleton skeleton-badge"></div></td>
+      <td><div class="skeleton skeleton-cell" style="width:60px"></div></td>
+      <td><div class="skeleton skeleton-cell" style="width:60px"></div></td>
+      <td><div class="skeleton skeleton-cell" style="width:80px"></div></td>
+    </tr>
+  `).join('');
+}
+function renderSkeletonReports(count = 3) {
+  return Array(count).fill(0).map(() => '<div class="skeleton skeleton-report-card"></div>').join('');
+}
+
 /* ---------- Navigation ---------- */
-function navigate(ev, el){
+function navigate(ev, view){
   if(ev) ev.preventDefault();
-  const view = el.getAttribute('data-view');
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  el.classList.add('active');
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  $('#'+'view-'+view).classList.add('active');
   activeView = view;
-  closeSidebar();
-  $('#view-title').textContent = el.querySelector('.nav-label').textContent;
-  $('#view-sub').textContent = {
-    dashboard:'Test case execution status and quick start',
-    config:'Gateway, credentials, wireless and behavior parameters; click "Save Config" to write to config.json',
-    board:'Case list sorted by Stage; click thumbnail to view large image, red box marks key elements in auto-pass screenshots',
-    reports:'Historical report directory and screenshot library; click screenshot to view large image'
-  }[view] || '';
+  $$('.nav-tab').forEach(n=>{n.classList.remove('active'); n.setAttribute('aria-selected','false');});
+  const t = $$('.nav-tab[onclick="navigate(event,\\''+view+'\\')"]')[0];
+  if(t){ t.classList.add('active'); t.setAttribute('aria-selected','true'); }
+  $$('section.card').forEach(s=>s.style.display='none');
+  if(view==='dashboard' || view==='board'){ $$('#card-topology, #card-telemetry, #card-stats, #card-clients').forEach(s=>s.style.display='block'); }
+  else if(view==='reports'){ $$('#card-reports').forEach(s=>s.style.display='block'); }
+  else if(view==='config'){ $$('#card-config').forEach(s=>s.style.display='block'); }
   if(view === 'reports') loadReports();
   if(view === 'dashboard') renderDashboard();
   if(view === 'board') renderBoard();
+  $('#net-text').textContent = view==='dashboard'?'Online':'—';
 }
-function toggleSidebar(){
-  const s = $('#sidebar');
-  const collapsed = s.classList.toggle('collapsed');
-  document.body.classList.toggle('sidebar-collapsed');
-  const table = $('#recent-table');
-  if (table) table.classList.toggle('compact', collapsed);
-}
-function closeSidebar(){
-  const s = $('#sidebar');
-  s.classList.remove('collapsed');
-  document.body.classList.remove('sidebar-collapsed');
-  const table = $('#recent-table');
-  if (table) table.classList.remove('compact');
-}
-document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeSidebar(); });
 
 /* ---------- Load & Render ---------- */
 async function load(){
+  // Show skeleton loading for initial load
+  if (Object.keys(cases).length === 0) {
+    showInitialSkeletons();
+  }
+  
   try{
     const r=await fetch('/api/state');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
     const d=await r.json();
     cfg=d.config||{};
     cases=d.cases||{};
     if(d.reports) reports = d.reports;
+    lastLoadError = null;
     renderStats();
     renderDashboard();
     renderConfig();
     renderBoard();
     renderProgress(d.progress||{});
-    $('#busy-chip').style.display = busy ? 'inline-flex' : 'none';
+    $('#busy-chip') && ($('#busy-chip').style.display = busy ? 'inline-flex' : 'none');
     if(activeView === 'reports') renderReports();
-  }catch(e){console.error('load failed',e);}
-  // Auto-restore buttons: when all cases are no longer running, reset busy and restore button states
+    updateRunningBadge();
+    updateTopologyClients();
+  }catch(e){
+    console.error('load failed',e);
+    lastLoadError = e;
+    showLoadError(e);
+  }
+  // Auto-restore buttons when nothing running
   if (busy && Object.values(cases||{}).every(c => (c.status||'PENDING').toUpperCase() !== 'RUNNING')) {
     busy = false;
-    document.querySelectorAll('button').forEach(btn => {
+    $$('button').forEach(btn => {
       btn.disabled = false;
       btn.classList.remove('btn-loading');
       if (btn.dataset.originalText) btn.textContent = btn.dataset.originalText;
@@ -719,14 +1402,98 @@ async function load(){
     });
   }
 }
+
+function showInitialSkeletons() {
+  // Dashboard stats card
+  const statsBody = $('#stats-body');
+  if (statsBody) statsBody.innerHTML = renderSkeletonStats();
+  
+  // Telemetry card
+  const telemetryBody = $('#telemetry-body');
+  if (telemetryBody) telemetryBody.innerHTML = renderSkeletonRates();
+  
+  // Client table
+  const tbody = $('#client-table-body');
+  if (tbody) tbody.innerHTML = renderSkeletonRows();
+  
+  // Reports grid
+  const reportsGrid = $('#reports-grid-inline');
+  if (reportsGrid) reportsGrid.innerHTML = renderSkeletonReports();
+}
+
+function showLoadError(error) {
+  toast('Failed to load state: ' + error.message, 'error', {
+    label: 'Retry',
+    callback: load
+  });
+  
+  // Show error state in client table
+  const tbody = $('#client-table-body');
+  if (tbody) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="padding:var(--space-8);text-align:center">
+          <div class="empty-inline">
+            <div class="empty-inline__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <p class="empty-inline__text">Failed to load test cases. <strong>${esc(error.message)}</strong></p>
+            <button class="btn ghost" onclick="load()" style="margin-top:var(--space-3);min-width:120px">Retry</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+  
+  // Show error state in reports
+  const reportsGrid = $('#reports-grid-inline');
+  if (reportsGrid && activeView === 'reports') {
+    reportsGrid.innerHTML = `
+      <div class="empty-functional">
+        <div class="empty-functional__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div class="empty-functional__content">
+          <div class="empty-functional__title">Failed to load reports</div>
+          <p class="empty-functional__desc">${esc(error.message)}</p>
+          <div class="empty-functional__action">
+            <button class="btn primary" onclick="loadReports()">Retry</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+}
+
 async function loadReports(){
+  const reportsGrid = $('#reports-grid-inline');
+  if (reportsGrid) reportsGrid.innerHTML = renderSkeletonReports(3);
+  
   try{
     const r=await fetch('/api/reports');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
     const d=await r.json();
     reports = d.reports||[];
     renderReports();
-  }catch(e){console.error('load reports failed',e);}
+  }catch(e){
+    console.error('load reports failed',e);
+    reportsGrid.innerHTML = `
+      <div class="empty-functional">
+        <div class="empty-functional__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div class="empty-functional__content">
+          <div class="empty-functional__title">Failed to load reports</div>
+          <p class="empty-functional__desc">${esc(e.message)}</p>
+          <div class="empty-functional__action">
+            <button class="btn primary" onclick="loadReports()">Retry</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
 }
+
 function renderStats(){
   const ids=Object.keys(cases||{});
   let pass=0,fail=0,run=0,pend=0;
@@ -737,25 +1504,134 @@ function renderStats(){
   $('#stat-total').textContent = ids.length;
   $('#stat-pass').textContent = pass;
   $('#stat-fail').textContent = fail;
-  $('#stat-todo').textContent = pend + run;
+  const total=ids.length; const done=pass+fail+($$(Object.values(cases||{}).filter(c=>(c.status||'PENDING').toUpperCase()==='SKIP')).length||0);
+  const pct = total ? Math.round(done/total*100) : 0;
+  $('#stat-pct').textContent = pct+'%';
+  $('#stat-progress').style.width = pct+'%';
 }
+
 function renderProgress(p){
   const total=Object.keys(cases||{}).length;
   const done = (p.done!==undefined ? p.done : Object.values(cases||{}).filter(c=>['PASS','FAIL','SKIP'].includes((c.status||'PENDING').toUpperCase())).length);
   const pct = total ? Math.round(done/total*100) : 100;
-  const bar=$('#progress-bar'); const txt=$('#progress-text');
-  if(bar){bar.style.width=pct+'%';}
+  $('#stat-progress').style.width = pct+'%';
+  $('#stat-pct').textContent = pct+'%';
   const running = Object.values(cases||{}).filter(c=>(c.status||'PENDING').toUpperCase()==='RUNNING').length;
-  txt.textContent = running ? `${running} cases running` : `All completed (${pct}%)`;
+  updateRunningBadge();
 }
+
+function updateRunningBadge() {
+  const running = Object.values(cases||{}).filter(c=>(c.status||'PENDING').toUpperCase()==='RUNNING').length;
+  const badge = $('#running-badge');
+  const count = $('#running-count');
+  if (running > 0) {
+    badge.style.display = 'inline-flex';
+    count.textContent = running;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function updateTopologyClients() {
+  const ids = Object.keys(cases||{});
+  $('#client-count').textContent = ids.length + ' cases';
+  $('#topo-clients').textContent = 'Clients: ' + ids.length;
+}
+
 function renderDashboard(){
   renderStats();
-  const tbody=$('#recent-table-body');
+  $('#rate-down').textContent = '—';
+  $('#rate-up').textContent = '—';
+  renderClientTable();
+  
+  // Dashboard empty state when no cases configured
+  const hasCases = Object.keys(cases||{}).length > 0;
+  const dashboardCard = $('.card.bento-3'); // Overview stat card
+  if (!hasCases && dashboardCard) {
+    const cardBody = dashboardCard.querySelector('.card-body');
+    if (cardBody) {
+      cardBody.innerHTML = `
+        <div class="empty-functional">
+          <div class="empty-functional__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 11l3 3L22 4"/>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+          </div>
+          <div class="empty-functional__content">
+            <div class="empty-functional__title">No test cases configured</div>
+            <p class="empty-functional__desc">Check <code>CASES</code> in <code>atp_web.py</code> to define your test suite.</p>
+            <div class="empty-functional__action">
+              <button class="btn ghost" onclick="navigate(event, 'config')">View Config</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  }
+  
+  // Telemetry empty state
+  const telemetryCard = $('.card.bento-2'); // Telemetry card
+  if (!hasCases && telemetryCard) {
+    const statElements = telemetryCard.querySelectorAll('.stat');
+    statElements.forEach(stat => {
+      const numEl = stat.querySelector('.num');
+      if (numEl) numEl.textContent = '—';
+    });
+    // Add inline empty state after the stats grid
+    const cardBody = telemetryCard.querySelector('.card-body');
+    if (cardBody && !cardBody.querySelector('.empty-inline')) {
+      const emptyState = document.createElement('div');
+      emptyState.className = 'empty-inline';
+      emptyState.style.gridColumn = '1 / -1';
+      emptyState.style.marginTop = 'var(--space-4)';
+      emptyState.innerHTML = `
+        <div class="empty-inline__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+        </div>
+        <p class="empty-inline__text">Telemetry data appears after first run.</p>
+      `;
+      cardBody.appendChild(emptyState);
+    }
+  }
+}
+
+function renderClientTable(){
+  const tbody=$('#client-table-body');
   tbody.innerHTML='';
-  const ids=Object.keys(cases||{}).sort((a,b)=>{
-    const ma=CASE_META[a]||{}, mb=CASE_META[b]||{};
-    return (ma.stage||0)-(mb.stage||0) || a.localeCompare(b);
-  }).slice(0,8);
+  const ids=Object.keys(cases||{}).sort((a,b)=>(CASE_META[a]||{stage:0}).stage-(CASE_META[b]||{stage:0}).stage || a.localeCompare(b));
+  
+  if (ids.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="padding:var(--space-8)">
+          <div class="empty-functional" style="max-width: 400px; margin: 0 auto;">
+            <div class="empty-functional__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="5" r="1"/>
+                <circle cx="6" cy="12" r="1"/>
+                <circle cx="18" cy="12" r="1"/>
+                <line x1="12" y1="5" x2="12" y2="9"/>
+                <line x1="6" y1="12" x2="6" y2="16"/>
+                <line x1="18" y1="12" x2="18" y2="16"/>
+              </svg>
+            </div>
+            <div class="empty-functional__content">
+              <div class="empty-functional__title">No clients in current run</div>
+              <p class="empty-functional__desc">Click <strong>Run All</strong> to start testing.</p>
+              <div class="empty-functional__action">
+                <button class="btn primary" onclick="runStage(event, '1')">Run All</button>
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+  
   for(const cid of ids){
     const c=cases[cid]||{};
     const meta=CASE_META[cid]||{title:cid,stage:''};
@@ -763,26 +1639,26 @@ function renderDashboard(){
     const cls=status.toLowerCase();
     let imgs='';
     for(const s of (c.screenshots||[])){
-      imgs+=`<a onclick="openLightbox('${esc(s)}', '${esc(cid)} • ${esc(meta.title)}')" style='cursor:pointer'><img src='${esc(s)}' alt='${esc(cid)} ${esc(meta.title)} screenshot' onerror="this.style.display='none'" alt='${esc(cid)} ${esc(meta.title)} screenshot'></a>`;
+      imgs+=`<a onclick="openLightbox('${esc(s)}', '${esc(cid)} • ${esc(meta.title)}')" style="cursor:pointer"><img src='${esc(s)}' alt='${esc(cid)} screenshot' onerror="this.style.display='none'" loading='lazy'></a>`;
     }
     let action='';
-    if(status==='FAIL') action+=`<button class='btn small danger' onclick="runOne(event, '${esc(cid)}')">Retry</button>`;
-    else if(status==='PENDING'||!status) action+=`<button class='btn small ghost' onclick="runOne(event, '${esc(cid)}')">Run</button>`;
-    else if(status==='RUNNING') action+=`<span class='status RUNNING dot'>Running</span>`;
-    else if(status==='PASS') action+=`<button class='btn small ghost' onclick="runOne(event, '${esc(cid)}')">Run again</button>`;
-    else if(status==='SKIP') action+=`<span class='status SKIP dot'>Skipped</span>`;
+    if(status==='FAIL') action+=`<button class="btn small destructive" onclick="runOne(event, '${esc(cid)}')">Retry</button>`;
+    else if(status==='PENDING'||!status) action+=`<button class="btn small ghost" onclick="runOne(event, '${esc(cid)}')">Run</button>`;
+    else if(status==='RUNNING') action+=`<span class="badge ok"><span class="dot"></span>Running</span>`;
+    else if(status==='PASS') action+=`<button class="btn small ghost" onclick="runOne(event, '${esc(cid)}')">Run again</button>`;
+    else if(status==='SKIP') action+=`<span class="badge" style="background:var(--border);color:var(--text-muted)"><span class="dot" style="background:var(--text-muted)"></span>Skipped</span>`;
     tbody.innerHTML+=`<tr>
-      <td><span class='case-id'>${esc(cid)}</span></td>
-      <td><span class='case-title'>${esc(meta.title)}</span></td>
-      <td><span class='case-stage'>Stage ${esc(meta.stage)}</span></td>
-      <td><span class='status ${cls} dot'>${statusMap(status)}</span></td>
-      <td><span class='detail' title='${esc(c.detail||'')}'>${esc(c.detail||'')}</span></td>
-      <td class='time'>${c.start||c.end ? `${esc(c.start||'')}${c.end?' - '+esc(c.end):''}` : ''}</td>
-      <td><div class='screens'>${imgs}</div></td>
-      <td class='actions'>${action}</td>
+      <td><span class="case-id">${esc(cid)}</span></td>
+      <td><span style="color:var(--text-primary)">${esc(meta.title)}</span></td>
+      <td><span style="font-size:0.75rem;color:var(--text-muted)">Stage ${esc(meta.stage)}</span></td>
+      <td><span class="badge ${cls}">${statusMap(status)}</span></td>
+      <td><span class="num">—</span></td>
+      <td><span class="num">—</span></td>
+      <td class="actions">${action}${imgs?' <button class="btn icon small" onclick="openGallery(\\''+esc(cid)+'\\', ['+(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')+'])">🖼</button>':''}</td>
     </tr>`;
   }
 }
+
 function renderConfig(){
   Object.entries(GROUP_KEYS).forEach(([containerId,keys])=>{
     const el=$(containerId);
@@ -797,134 +1673,257 @@ function renderConfig(){
       const inputHtml=isBool
         ?`<input type='checkbox' ${checked} onchange="cfg['${k}']=this.checked" />`
         :`<input type='${inputType}' value='${esc(masked)}' onchange="cfg['${k}']=this.value" ${isPassword?'autocomplete="new-password"':''} />`;
-      const toggle=isPassword?`<button class='pwd-toggle' type='button' onclick='togglePwd(this,${JSON.stringify(k)})' title='Show/Hide'>👁</button>`:'';
-      return `<div class='cfg-item'><label>${esc(k)}</label>${inputHtml}${toggle}</div>`;
+      const toggle=isPassword?`<button class="pwd-toggle" type="button" onclick='togglePwd(this,${JSON.stringify(k)})' title='Show/Hide'>👁</button>`:'';
+      return `<div class="cfg-item"><label>${esc(k)}</label>${inputHtml}${toggle}</div>`;
     }).join('');
   });
   const editor=$('#hl-editor');
   if(editor){
     editor.value = JSON.stringify(cfg.case_highlights||{}, null, 2);
     editor.onchange = function(e){
-      try{cfg.case_highlights = JSON.parse(e.target.value) || {}; editor.classList.remove('invalid');}catch{editor.classList.add('invalid'); toast('case_highlights JSON format error');}
+      try{
+        cfg.case_highlights = JSON.parse(e.target.value) || {};
+        editor.classList.remove('input-error');
+        $('#hl-editor-error').style.display = 'none';
+      }catch(err){
+        editor.classList.add('input-error');
+        const errEl = $('#hl-editor-error');
+        errEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Invalid JSON: ' + esc(err.message);
+        errEl.style.display = 'flex';
+      }
     };
-    editor.classList.remove('invalid');
+    editor.classList.remove('input-error');
+    $('#hl-editor-error').style.display = 'none';
+  }
+  
+  // Config empty state when no config loaded
+  const hasConfig = Object.keys(cfg||{}).length > 0;
+  const configBody = document.getElementById('config-body');
+  if (!hasConfig && configBody) {
+    const containers = configBody.querySelectorAll('#cfg-gateway, #cfg-credentials, #cfg-wifi, #cfg-behavior');
+    let allEmpty = true;
+    containers.forEach(c => { if (c.innerHTML.trim()) allEmpty = false; });
+    if (allEmpty) {
+      const emptyState = document.createElement('div');
+      emptyState.className = 'empty-functional';
+      emptyState.style.maxWidth = '400px';
+      emptyState.style.margin = '0 auto';
+      emptyState.innerHTML = `
+        <div class="empty-functional__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+          </svg>
+        </div>
+        <div class="empty-functional__content">
+          <div class="empty-functional__title">Configuration not loaded</div>
+          <p class="empty-functional__desc">Refresh or check server logs.</p>
+          <div class="empty-functional__action">
+            <button class="btn ghost" onclick="load()">Refresh</button>
+          </div>
+        </div>
+      `;
+      // Insert before the case highlights section
+      const highlightsSection = configBody.querySelector('div[style*="margin-top:var(--space-6)"]');
+      if (highlightsSection) {
+        configBody.insertBefore(emptyState, highlightsSection);
+      } else {
+        configBody.appendChild(emptyState);
+      }
+    }
   }
 }
+
 function renderBoard(){
-  const tbody=$('#tbl-body');
+  const tbody=$('#client-table-body');
   tbody.innerHTML='';
-  const ids=Object.keys(cases||{}).sort((a,b)=>{
-    const ma=CASE_META[a]||{}, mb=CASE_META[b]||{};
-    return (ma.stage||0)-(mb.stage||0) || a.localeCompare(b);
-  });
-  let running=0,total=ids.length;
+  const ids=Object.keys(cases||{}).sort((a,b)=>(CASE_META[a]||{stage:0}).stage-(CASE_META[b]||{stage:0}).stage || a.localeCompare(b));
+  
+  if (ids.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="padding:var(--space-8)">
+          <div class="empty-functional" style="max-width: 400px; margin: 0 auto;">
+            <div class="empty-functional__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="5" r="1"/>
+                <circle cx="6" cy="12" r="1"/>
+                <circle cx="18" cy="12" r="1"/>
+                <line x1="12" y1="5" x2="12" y2="9"/>
+                <line x1="6" y1="12" x2="6" y2="16"/>
+                <line x1="18" y1="12" x2="18" y2="16"/>
+              </svg>
+            </div>
+            <div class="empty-functional__content">
+              <div class="empty-functional__title">No clients in current run</div>
+              <p class="empty-functional__desc">Click <strong>Run All</strong> to start testing.</p>
+              <div class="empty-functional__action">
+                <button class="btn primary" onclick="runStage(event, '1')">Run All</button>
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+  
   for(const cid of ids){
     const c=cases[cid]||{};
     const meta=CASE_META[cid]||{title:cid,stage:''};
     const status=(c.status||'PENDING').toUpperCase();
     const cls=status.toLowerCase();
-    if(status==='RUNNING') running++;
-    const start=c.start||'', end=c.end||'';
-    const timeHtml = start||end ? `${start}${end?' - '+end:''}`:'';
     let imgs='';
     for(const s of (c.screenshots||[])){
-      imgs+=`<a onclick="openLightbox('${esc(s)}', '${esc(cid)} • ${esc(meta.title)}')" style='cursor:pointer'><img src='${esc(s)}' alt='${esc(cid)} ${esc(meta.title)} screenshot' onerror="this.style.display='none'" alt='${esc(cid)} ${esc(meta.title)} screenshot'></a>`;
+      imgs+=`<a onclick="openLightbox('${esc(s)}', '${esc(cid)} • ${esc(meta.title)}')" style="cursor:pointer"><img src='${esc(s)}' alt='${esc(cid)} screenshot' onerror="this.style.display='none'" loading='lazy'></a>`;
     }
-    const galleryBtn = imgs?`<button class='btn icon small' onclick="openGallery('${esc(cid)}', [${(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')}])\" title='View Screenshot'>🖼</button>`:'';
     let action='';
-    if(status==='FAIL'){
-      action+=`<button class='btn small danger' onclick="runOne(event, '${esc(cid)}')">Retry</button>`;
-    }else if(status==='PENDING'||!status){
-      action+=`<button class='btn small ghost' onclick="runOne(event, '${esc(cid)}')">Run</button>`;
-    }else if(status==='RUNNING'){
-      action+=`<span class='status RUNNING dot'>Running</span>`;
-    }else if(status==='PASS'){
-      action+=`<button class='btn small ghost' onclick="runOne(event, '${esc(cid)}')">Run again</button>`;
-    }else if(status==='SKIP'){
-      action+=`<span class='status SKIP dot'>Skipped</span>`;
-    }
-    action+=galleryBtn;
+    if(status==='FAIL') action+=`<button class="btn small destructive" onclick="runOne(event, '${esc(cid)}')">Retry</button>`;
+    else if(status==='PENDING'||!status) action+=`<button class="btn small ghost" onclick="runOne(event, '${esc(cid)}')">Run</button>`;
+    else if(status==='RUNNING') action+=`<span class="badge ok"><span class="dot"></span>Running</span>`;
+    else if(status==='PASS') action+=`<button class="btn small ghost" onclick="runOne(event, '${esc(cid)}')">Run again</button>`;
+    else if(status==='SKIP') action+=`<span class="badge" style="background:var(--border);color:var(--text-muted)"><span class="dot" style="background:var(--text-muted)"></span>Skipped</span>`;
     tbody.innerHTML+=`<tr>
-      <td><span class='case-id'>${esc(cid)}</span></td>
-      <td><span class='case-title'>${esc(meta.title)}</span></td>
-      <td><span class='case-stage'>Stage ${esc(meta.stage)}</span></td>
-      <td><span class='status ${cls} dot'>${statusMap(status)}</span></td>
-      <td><span class='detail' title='${esc(c.detail||'')}'>${esc(c.detail||'')}</span></td>
-      <td class='time'>${esc(timeHtml)}</td>
-      <td><div class='screens'>${imgs}</div></td>
-      <td class='actions'>${action}</td>
+      <td><span class="case-id">${esc(cid)}</span></td>
+      <td><span style="color:var(--text-primary)">${esc(meta.title)}</span></td>
+      <td><span style="font-size:0.75rem;color:var(--text-muted)">Stage ${esc(meta.stage)}</span></td>
+      <td><span class="badge ${cls}">${statusMap(status)}</span></td>
+      <td><span class="num">—</span></td>
+      <td><span class="num">—</span></td>
+      <td class="actions">${action}${imgs?' <button class="btn icon small" onclick="openGallery(\\''+esc(cid)+'\\', ['+(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')+'])">🖼</button>':''}</td>
     </tr>`;
   }
 }
+
 function renderReports(){
-  const el=$('#reports-grid');
-  if(!el || activeView!=='reports') return;
-  if(!reports.length){el.innerHTML=`<div class='empty-state'><p>No report directories yet; screenshots and reports will be generated in reports/ after running cases</p></div>`; return;}
+  const el=document.getElementById('reports-grid-inline');
+  if(!el) return;
+  if(!reports.length){
+    el.innerHTML=`
+      <div class="empty-functional">
+        <div class="empty-functional__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+        </div>
+        <div class="empty-functional__content">
+          <div class="empty-functional__title">No reports yet</div>
+          <p class="empty-functional__desc">Run a stage to generate screenshots & HTML reports.</p>
+          <div class="empty-functional__action">
+            <button class="btn ghost" onclick="navigate(event, 'dashboard')">Go to Overview</button>
+            <button class="btn primary" onclick="runStage(event, '1')" style="margin-left:var(--space-3)">Run Stage 1</button>
+          </div>
+        </div>
+      </div>
+    `;
+    return;
+  }
   el.innerHTML=reports.map(r=>{
-    const thumbs=(r.screenshots||[]).slice(0,6).map(s=>`<a onclick=\"openLightbox('${esc(s)}', '${esc(r.name)} • screenshot')\" style='cursor:pointer'><img src='${esc(s)}' alt='${esc(r.name)} • screenshot' onerror="this.style.display='none'" loading='lazy'></a>`).join('');
-    const more = (r.screenshots||[]).length > 6 ? `<span class='status PENDING dot'>+${r.screenshots.length-6} more</span>` : '';
-    return `<div class='card report-card'>
-      <header><span class='report-name'>${esc(r.name)}</span><span class='report-meta'>${r.file_count||0} files ${more}</span></header>
-      <p class='hint' style='margin:6px 0 8px'>${esc(r.path||'')}</p>
-      <div class='report-thumbs'>${thumbs}</div>
+    const thumbs=(r.screenshots||[]).slice(0,6).map(s=>`<a onclick="openLightbox('${esc(s)}', '${esc(r.name)} • screenshot')" style="cursor:pointer"><img src='${esc(s)}' alt='${esc(r.name)}' onerror="this.style.display='none'" loading='lazy'></a>`).join('');
+    const more = (r.screenshots||[]).length > 6 ? `<span class="badge" style="background:var(--border);color:var(--text-muted)">+${r.screenshots.length-6}</span>` : '';
+    return `<div class="card" style="padding:var(--space-5)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-3);margin-bottom:var(--space-3)">
+        <div><div style="font-weight:700;color:var(--text-primary)">${esc(r.name)}</div><div style="font-size:0.75rem;color:var(--text-muted)">${esc(r.path||'')}</div></div>
+        <div style="font-size:0.75rem;color:var(--text-muted)">${r.file_count||0} files ${more}</div>
+      </div>
+      <div style="display:flex;gap:var(--space-3);flex-wrap:wrap">${thumbs}</div>
     </div>`;
   }).join('');
 }
 
 /* ---------- Actions ---------- */
 async function runStage(event, stage){
-  if(busy){toast('Test in progress, please wait'); return;}
-  // Disable all Run All buttons and show loading
-  document.querySelectorAll("button[onclick*=\"runStage('all')\"]").forEach(btn => {
-    btn.disabled = true;
-    btn.classList.add('btn-loading');
-    btn.dataset.originalText = btn.textContent;
-    btn.textContent = 'Running…';
+  if(busy){toast('Test in progress, please wait', 'info'); return;}
+  $$(".btn.primary").forEach(btn=>{
+    btn.disabled = true; btn.classList.add('btn-loading');
+    btn.dataset.originalText = btn.textContent; btn.textContent = 'Running…';
   });
-  const r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stage,config:cfg})});
-  const d=await r.json();
-  if(!d.ok){toast(d.error||'Submit failed'); restoreRunAllButtons(); return;}
-  toast('Submitted: Stage '+stage);
-  busy=true; poll();
+  try{
+    const r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stage,config:cfg})});
+    const d=await r.json();
+    if(!d.ok){toast(d.error||'Submit failed', 'error'); restoreRunButtons(); return;}
+    toast('Submitted: Stage '+stage, 'success');
+    busy=true; poll();
+  }catch(e){toast('Submit failed: ' + e.message, 'error'); restoreRunButtons();}
 }
 
-function restoreRunAllButtons(){
-  document.querySelectorAll("button[onclick*=\"runStage('all')\"]").forEach(btn => {
-    btn.disabled = false;
-    btn.classList.remove('btn-loading');
+function restoreRunButtons(){
+  $$(".btn.primary").forEach(btn=>{
+    btn.disabled = false; btn.classList.remove('btn-loading');
     if (btn.dataset.originalText) btn.textContent = btn.dataset.originalText;
     delete btn.dataset.originalText;
   });
 }
+
 async function runOne(event, cid){
-  if(busy){toast('Test in progress, please wait'); return;}
+  if(busy){toast('Test in progress, please wait', 'info'); return;}
   const btn = event.currentTarget;
-  btn.disabled = true;
-  btn.classList.add('btn-loading');
-  btn.dataset.originalText = btn.textContent;
-  btn.textContent = 'Running…';
-  const r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({case:cid,config:cfg})});
-  const d=await r.json();
-  if(!d.ok){
-    toast(d.error||'Submit failed');
-    btn.disabled = false;
-    btn.classList.remove('btn-loading');
+  btn.disabled = true; btn.classList.add('btn-loading');
+  btn.dataset.originalText = btn.textContent; btn.textContent = 'Running…';
+  try{
+    const r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({case:cid,config:cfg})});
+    const d=await r.json();
+    if(!d.ok){
+      toast(d.error||'Submit failed', 'error', {
+        label: 'Retry',
+        callback: () => runOne(event, cid)
+      });
+      btn.disabled=false; btn.classList.remove('btn-loading');
+      if(btn.dataset.originalText){btn.textContent=btn.dataset.originalText;}
+      delete btn.dataset.originalText;
+      return;
+    }
+    toast('Running '+cid, 'success');
+    busy=true; poll();
+  }catch(e){
+    toast('Submit failed: ' + e.message, 'error', {
+      label: 'Retry',
+      callback: () => runOne(event, cid)
+    });
+    btn.disabled=false; btn.classList.remove('btn-loading');
+    if(btn.dataset.originalText){btn.textContent=btn.dataset.originalText;}
+    delete btn.dataset.originalText;
+  }
+}
+
+async function saveConfig(){
+  const btn = $('#btn-save');
+  btn.disabled = true; btn.classList.add('btn-loading');
+  btn.dataset.originalText = btn.textContent; btn.textContent = 'Saving…';
+  
+  try {
+    const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
+    const d=await r.json();
+    
+    if (d.ok) {
+      const badge = document.createElement('span');
+      badge.className = 'saved-badge';
+      badge.style.background = 'var(--ok-bg)';
+      badge.style.color = 'var(--ok)';
+      badge.textContent = 'Saved';
+      btn.appendChild(badge);
+      setTimeout(()=>badge.remove(), 3000);
+      toast('Configuration saved', 'success');
+    } else {
+      toast(d.error || 'Save failed', 'error', {
+        label: 'Retry',
+        callback: saveConfig
+      });
+    }
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'error', {
+      label: 'Retry',
+      callback: saveConfig
+    });
+  } finally {
+    btn.disabled = false; btn.classList.remove('btn-loading');
     if (btn.dataset.originalText) btn.textContent = btn.dataset.originalText;
     delete btn.dataset.originalText;
-    return;
   }
-  toast('Running '+cid);
-  busy=true; poll();
 }
-async function saveConfig(){
-  const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
-  const d=await r.json();
-  const b=document.createElement('span'); b.className='saved-badge'; b.textContent=d.ok?'Saved':'Save Failed'; b.style.color=d.ok?'var(--color-success)':'var(--color-danger)';
-  const btn=$('#btn-save'); btn.appendChild(b);
-  setTimeout(()=>b.remove(),1500);
-  toast(d.ok?'Config saved':(d.error||'Save Failed'));
-}
-async function refresh(){load(); toast('Refreshed');}
+
+async function refresh(){load(); toast('Refreshed', 'info');}
 function poll(){setTimeout(load,2000);}
 
 /* ---------- Password toggle ---------- */
@@ -937,50 +1936,111 @@ function togglePwd(btn,key){
 
 /* ---------- Gallery / Lightbox ---------- */
 function openGallery(cid, imgs){
-  const imgsStr = JSON.stringify(imgs);
   const meta=CASE_META[cid]||{title:cid};
-  const items=imgs.length? imgs.map((s,i)=>`
-    <div style='border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#000;display:flex;flex-direction:column'>
-      <img src='${esc(s)}' style='width:100%;height:auto;max-height:48vh;object-fit:contain' alt='${esc(cid)} ${esc(meta.title)} screenshot ${i+1}/${imgs.length}' onerror="this.style.display='none'" loading='lazy'>
-      <div class='gallery-caption'>${cid} • ${meta.title} • screenshot ${i+1}/${imgs.length}</div>
+  const items=imgs.length? imgs.map((s,i)=>`<div style="border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;background:#000;display:flex;flex-direction:column"><img src='${esc(s)}' style='width:100%;height:auto;max-height:48vh;object-fit:contain' alt='${esc(cid)} screenshot ${i+1}/${imgs.length}' onerror="this.style.display='none'" loading='lazy'><div style="padding:var(--space-3);font-size:0.75rem;color:var(--text-muted);background:rgba(255,255,255,0.05)">${cid} • ${meta.title} • ${i+1}/${imgs.length}</div></div>`).join(''):`<div class="empty-functional" style="padding:var(--space-5)">
+    <div class="empty-functional__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div>
+    <div class="empty-functional__content">
+      <div class="empty-functional__title">No screenshots</div>
+      <p class="empty-functional__desc">This test case has not generated any screenshots yet.</p>
     </div>
-  `).join(''):`<div class='empty-state' style='padding:24px'>No screenshots</div>`;
-  const body=`<div style='padding:20px;display:flex;flex-direction:column;gap:16px'>${items}</div>`;
+  </div>`;
+  const body=`<div style="padding:var(--space-5);display:flex;flex-direction:column;gap:var(--space-4)">${items}</div>`;
   openLightboxInline(body, `${cid} • ${meta.title} Screenshot Gallery`);
 }
+
 function openLightbox(src, caption){
-  const modal=$('#lightbox'); const img=$('#lightbox-img'); const cap=$('#lightbox-caption');
-  img.src=src; cap.textContent=caption||'';
+  const modal=$('#lightbox');
+  const panel=$('#lightbox-panel');
+  const img=$('#lightbox-img');
+  const cap=$('#lightbox-caption');
+  const err=$('#lightbox-error');
+  
+  // Reset panel state
+  panel.classList.remove('loading', 'error');
+  img.style.display = 'block';
+  err.style.display = 'none';
+  
+  // Show loading state
+  panel.classList.add('loading');
+  img.src = '';
+  
+  // Handle image load/error
+  img.onload = () => {
+    panel.classList.remove('loading');
+  };
+  img.onerror = () => {
+    panel.classList.remove('loading');
+    panel.classList.add('error');
+    img.style.display = 'none';
+    err.style.display = 'flex';
+    err.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+        <path d="M3 9h18M9 21V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <h3>Screenshot unavailable</h3>
+      <p>The image could not be loaded. It may have been deleted or the path is invalid.</p>
+      <button class="btn ghost" onclick="openInNewTab()" style="margin-top:var(--space-3)">Open in New Tab</button>
+      <button class="btn ghost" onclick="closeLightbox()" style="margin-top:var(--space-2)">Close</button>
+    `;
+  };
+  
+  img.src = src;
+  cap.textContent = caption || '';
+  modal.setAttribute('aria-hidden','false');
   modal.classList.add('open');
 }
+
 function openLightboxInline(html, caption){
-  const modal=$('#lightbox'); const cap=$('#lightbox-caption');
+  const modal=$('#lightbox');
+  const cap=$('#lightbox-caption');
   const panel=modal.querySelector('.lightbox-panel');
-  const oldImg=panel.querySelector('img'); const oldActions=panel.querySelector('.lightbox-actions');
+  panel.classList.remove('loading', 'error');
+  const oldImg=panel.querySelector('img'); 
+  const oldActions=panel.querySelector('.lightbox-actions');
   if(oldImg) oldImg.style.display='none';
   if(oldActions) oldActions.style.display='none';
   let content=panel.querySelector('.lightbox-inline');
   if(!content){content=document.createElement('div'); content.className='lightbox-inline'; content.style.padding='12px 16px'; panel.insertBefore(content, panel.querySelector('.lightbox-caption'));}
   content.innerHTML=html;
   cap.textContent=caption||'';
+  modal.setAttribute('aria-hidden','false');
   modal.classList.add('open');
 }
+
 function closeLightbox(){
-  const modal=$('#lightbox'); modal.classList.remove('open');
+  const modal=$('#lightbox');
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden','true');
   const panel=modal.querySelector('.lightbox-panel');
-  const img=panel.querySelector('img'); if(img){img.style.display='block'; img.src='';}
-  const actions=panel.querySelector('.lightbox-actions'); if(actions) actions.style.display='flex';
-  const content=panel.querySelector('.lightbox-inline'); if(content) content.remove();
+  const img=panel.querySelector('img');
+  if(img){img.style.display='block'; img.src='';}
+  const actions=panel.querySelector('.lightbox-actions');
+  if(actions) actions.style.display='flex';
+  const content=panel.querySelector('.lightbox-inline');
+  if(content) content.remove();
+  const err=panel.querySelector('.lightbox-error');
+  if(err) {err.style.display='none'; err.innerHTML='';}
   $('#lightbox-caption').textContent='';
+  panel.classList.remove('loading', 'error');
 }
+
 function openInNewTab(){
   const src=$('#lightbox-img').src;
   if(src) window.open(src,'_blank');
 }
-document.getElementById('lightbox').addEventListener('click',e=>{
-  if(e.target===document.getElementById('lightbox')) closeLightbox();
-});
+
+document.getElementById('lightbox').addEventListener('click',e=>{ if(e.target===document.getElementById('lightbox')) closeLightbox(); });
 document.addEventListener('keydown',e=>{if(e.key==='Escape') closeLightbox();});
+
+/* ---------- Card loading overlay for polling ---------- */
+function setCardLoading(cardId, loading) {
+  const card = $(cardId);
+  if (card) {
+    if (loading) card.classList.add('loading');
+    else card.classList.remove('loading');
+  }
+}
 
 /* ---------- Boot ---------- */
 load();
