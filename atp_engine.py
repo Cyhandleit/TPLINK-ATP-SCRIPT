@@ -463,9 +463,8 @@ def run_stage_2(term_page, rep):
     for cid, title, cfg, img_fn in bands:
         ok, conn_out = connect_wifi(cfg["ssid"], cfg["pass"])
         if not ok:
-            rep.record(
-                cid, title, "SKIP", f"Unable to connect SSID: {
-                    cfg['ssid']} (ignore if device does not support this band)")
+            detail = f"Unable to connect SSID: {cfg['ssid']} (ignore if device does not support this band)"
+            rep.record(cid, title, "SKIP", detail)
             continue
         c_s, o_s = run_cmd("speedtest-cli --simple", timeout=60)
         rep.render_terminal_screenshot(term_page, f"[{cfg['ssid']}] speedtest-cli --simple", o_s, img_fn)
