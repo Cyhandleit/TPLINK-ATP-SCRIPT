@@ -1198,7 +1198,7 @@ table.clients button[disabled] {
         <div id="hl-editor-error" class="error-message" style="display:none" aria-live="polite"></div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:var(--space-3);margin-top:var(--space-6)">
-        <button class="btn ghost" onclick="load()">Discard</button>
+        <button class="btn ghost" onclick="cfgDirty=false; load(true)">Discard</button>
         <button class="btn primary" id="btn-save" onclick="saveConfig()">Save Configuration</button>
       </div>
     </div>
@@ -1326,6 +1326,8 @@ let pollTimer = null;
 let busy = false;
 let activeView = 'dashboard';
 let lastLoadError = null;
+let cfgDirty = false;          // true when user has unsaved config changes
+let configEditing = false;     // true when focus is inside #config-body
 
 /* ---------- Utils ---------- */
 function $(sel){return document.querySelector(sel)}
@@ -1410,23 +1412,32 @@ function navigate(ev, view){
 }
 
 /* ---------- Load & Render ---------- */
-async function load(){
+async function load(forceConfig=false){
   // Show skeleton loading for initial load
   if (Object.keys(cases).length === 0) {
     showInitialSkeletons();
   }
-  
+
   try{
     const r=await fetch('/api/state');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d=await r.json();
-    cfg=d.config||{};
-    cases=d.cases||{};
+    
+    // Only update config and re-render config form if:
+    // - Not on config view, OR
+    // - No unsaved changes AND user not currently editing config
+    const shouldUpdateConfig = forceConfig || activeView !== 'config' || (!cfgDirty && !configEditing);
+    
+    if (shouldUpdateConfig) {
+      cfg = d.config || {};
+      renderConfig();
+    }
+    
+    cases = d.cases || {};
     if(d.reports) reports = d.reports;
     lastLoadError = null;
     renderStats();
     renderDashboard();
-    renderConfig();
     renderBoard();
     renderProgress(d.progress||{});
     $('#busy-chip') && ($('#busy-chip').style.display = busy ? 'inline-flex' : 'none');
@@ -1719,8 +1730,8 @@ function renderConfig(){
       const inputType=isPassword?'password':(isBool?'checkbox':'text');
       const masked=isPassword&&v&&v!=='***'?'*'.repeat(Math.min(v.length,8)):v;
       const inputHtml=isBool
-        ?`<input type='checkbox' id='cfg-in-${k}' name='${k}' ${checked} onchange="cfg['${k}']=this.checked" />`
-        :`<input type='${inputType}' id='cfg-in-${k}' name='${k}' value='${esc(masked)}' onchange="cfg['${k}']=this.value" ${isPassword?'autocomplete="new-password"':''} />`;
+        ?`<input type='checkbox' id='cfg-in-${k}' name='${k}' ${checked} onchange="cfg['${k}']=this.checked; cfgDirty=true;" />`
+        :`<input type='${inputType}' id='cfg-in-${k}' name='${k}' value='${esc(masked)}' onchange="cfg['${k}']=this.value; cfgDirty=true;" ${isPassword?'autocomplete="new-password"':''} />`;
       const toggle=isPassword?`<button class="pwd-toggle" type="button" onclick='togglePwd(this,${JSON.stringify(k)})' title='Show/Hide'>👁</button>`:'';
       const field=isPassword?`<div class="cfg-input-wrap">${inputHtml}${toggle}</div>`:inputHtml;
       return `<div class="cfg-item"><label for='cfg-in-${k}'>${esc(k)}</label>${field}</div>`;
@@ -1732,6 +1743,7 @@ function renderConfig(){
     editor.onchange = function(e){
       try{
         cfg.case_highlights = JSON.parse(e.target.value) || {};
+        cfgDirty = true;
         editor.classList.remove('input-error');
         $('#hl-editor-error').style.display = 'none';
       }catch(err){
@@ -1744,7 +1756,7 @@ function renderConfig(){
     editor.classList.remove('input-error');
     $('#hl-editor-error').style.display = 'none';
   }
-  
+
   // Config empty state when no config loaded
   const hasConfig = Object.keys(cfg||{}).length > 0;
   const configBody = document.getElementById('config-body');
@@ -1941,12 +1953,14 @@ async function saveConfig(){
   const btn = $('#btn-save');
   btn.disabled = true; btn.classList.add('btn-loading');
   btn.dataset.originalText = btn.textContent; btn.textContent = 'Saving…';
-  
+
   try {
     const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
     const d=await r.json();
-    
+
     if (d.ok) {
+      cfgDirty = false;  // Clear dirty flag on successful save
+      load(true);       // Refresh form with server-confirmed values even while focus stays in the form
       const badge = document.createElement('span');
       badge.className = 'saved-badge';
       badge.style.background = 'var(--ok-bg)';
@@ -2133,6 +2147,20 @@ function setCardLoading(cardId, loading) {
     else card.classList.remove('loading');
   }
 }
+
+/* ---------- Config editing focus tracking ---------- */
+(function(){
+  const configBody = document.getElementById('config-body');
+  if (configBody) {
+    configBody.addEventListener('focusin', () => { configEditing = true; });
+    configBody.addEventListener('focusout', () => { 
+      // Use setTimeout to allow focus to move to another element within config-body
+      setTimeout(() => {
+        configEditing = document.activeElement && configBody.contains(document.activeElement);
+      }, 0);
+    });
+  }
+})();
 
 /* ---------- Boot ---------- */
 load();
