@@ -400,8 +400,9 @@ class ATPWebEngine:
             if case_id in ("3.2", "3.3", "3.4"):
                 band_map = {"3.2": "wifi_24g", "3.3": "wifi_5g", "3.4": "wifi_6g"}
                 key = band_map[case_id]
-                ssid = CONFIG.get(key, {}).get("ssid", "")
-                pw = CONFIG.get(key, {}).get("pass", "")
+                # Flat keys from the Web UI config take priority; nested dict kept for CLI compatibility
+                ssid = CONFIG.get(key + "_ssid") or CONFIG.get(key, {}).get("ssid", "")
+                pw = CONFIG.get(key + "_pass") or CONFIG.get(key, {}).get("pass", "")
                 ok, cout = self._connect_wifi(ssid, pw)
                 if not ok:
                     return ("SKIP", f"Unable to connect SSID: {ssid}", [], "\n".join(logs))

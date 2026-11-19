@@ -904,6 +904,26 @@ table.clients button[disabled] {
 @keyframes progressRing { to { stroke-dashoffset: 0; } }
 @media (prefers-reduced-motion: reduce) { .progress-ring-fg { animation: none; stroke-dashoffset: 0; } }
 
+
+/* ---------- Button size variants ---------- */
+.btn.small { padding: var(--space-1) var(--space-3); font-size: 0.75rem; border-radius: var(--radius-md); }
+.btn.icon { padding: var(--space-1) var(--space-2); font-size: 0.85rem; line-height: 1; }
+
+/* ---------- Configuration form ---------- */
+.cfg-groups { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-6); }
+@media (max-width: 900px) { .cfg-groups { grid-template-columns: 1fr; } }
+.cfg-group-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--border); }
+.cfg-item { display: grid; grid-template-columns: 170px 1fr; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
+.cfg-item label { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); font-family: var(--font-mono); overflow-wrap: anywhere; }
+.cfg-item input[type="text"], .cfg-item input[type="password"] { width: 100%; padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--text-primary); font-family: var(--font-mono); font-size: 0.8rem; transition: border-color var(--trans); }
+.cfg-item input[type="text"]:hover, .cfg-item input[type="password"]:hover { border-color: var(--border-hover); }
+.cfg-item input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--brand); justify-self: start; }
+.cfg-input-wrap { position: relative; }
+.cfg-input-wrap input { padding-right: 36px; }
+.cfg-input-wrap .pwd-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); }
+.pwd-toggle { background: none; border: none; cursor: pointer; font-size: 0.9rem; padding: var(--space-1); color: var(--text-muted); }
+.pwd-toggle:hover { color: var(--text-primary); }
+@media (max-width: 600px) { .cfg-item { grid-template-columns: 1fr; gap: var(--space-1); } }
 </style>
 </head>
 <body>
@@ -1024,7 +1044,7 @@ table.clients button[disabled] {
           </div>
           <div class="topo-row">
             <span class="topo-node topo-node--muted" aria-hidden="true">CL</span>
-            <span class="topo-label" id="topo-clients">Clients: —</span>
+            <span class="topo-label" id="topo-clients">Test Cases: —</span>
           </div>
         </div>
       </section>
@@ -1098,6 +1118,14 @@ table.clients button[disabled] {
               </div>
             </div>
           </div>
+          <div style="display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-3)">
+            <button class="btn primary small" onclick="runStage(event,'all')">Run All</button>
+            <button class="btn ghost small" onclick="runStage(event,'1')">Stage 1</button>
+            <button class="btn ghost small" onclick="runStage(event,'2')">Stage 2</button>
+            <button class="btn ghost small" onclick="runStage(event,'3')">Stage 3</button>
+            <button class="btn ghost small" onclick="runStage(event,'4')">Stage 4</button>
+            <button class="btn ghost small" onclick="runStage(event,'5')">Stage 5</button>
+          </div>
         </div>
       </section>
     </div>
@@ -1116,15 +1144,15 @@ table.clients button[disabled] {
     <section class="card bento-1" id="card-clients" style="margin-top:var(--space-6)">
       <header>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px;color:var(--brand)"><circle cx="12" cy="5" r="1"/><circle cx="6" cy="12" r="1"/><circle cx="18" cy="12" r="1"/><line x1="12" y1="5" x2="12" y2="9"/><line x1="6" y1="12" x2="6" y2="16"/><line x1="18" y1="12" x2="18" y2="16"/></svg>
-        <div class="card-title">Connected Clients</div>
-        <span class="badge" id="client-count" style="margin-left:auto">0 devices</span>
+        <div class="card-title">Test Cases</div>
+        <span class="badge" id="client-count" style="margin-left:auto">0 cases</span>
       </header>
       <div class="card-body" style="padding:0 var(--space-6) var(--space-6)">
         <div style="overflow:auto">
           <table class="clients" id="client-table">
             <thead>
               <tr>
-                <th>Device</th><th>IP</th><th>Band</th><th>Status</th><th>Downlink</th><th>Uplink</th><th>Actions</th>
+                <th>Case</th><th>Test Name</th><th>Stage</th><th>Status</th><th>Started</th><th>Finished</th><th>Actions</th>
               </tr>
             </thead>
             <tbody id="client-table-body"></tbody>
@@ -1132,8 +1160,6 @@ table.clients button[disabled] {
         </div>
       </div>
     </section>
-  </main>
-
   <!-- Reports section (shown on Reports tab) -->
   <section class="card bento-1" id="card-reports" style="margin-top:var(--space-6);display:none">
     <header>
@@ -1160,7 +1186,7 @@ table.clients button[disabled] {
         <input type="file" id="cfg-import-file" accept=".json" style="display:none" onchange="importConfig(this)">
       </div>
     <div class="card-body" id="config-body" style="padding:var(--space-6)">
-      <div style="display:grid;gap:var(--space-6)">
+      <div class="cfg-groups">
         <div id="cfg-gateway"></div>
         <div id="cfg-credentials"></div>
         <div id="cfg-wifi"></div>
@@ -1177,6 +1203,8 @@ table.clients button[disabled] {
       </div>
     </div>
   </section>
+  </main>
+
 </div>
 
 <!-- Lightbox -->
@@ -1287,8 +1315,9 @@ const GROUP_KEYS = {
   'cfg-gateway': ['gateway_ip','gateway_scheme','lan_iface','wifi_iface','ext_nic_ip','iperf3_server_ip','http_forward_port','firmware_bin_path'],
   'cfg-credentials': ['admin_user','admin_pass','superadmin_user','superadmin_pass','tauc_user','tauc_pass'],
   'cfg-wifi': ['wifi_24g_ssid','wifi_24g_pass','wifi_5g_ssid','wifi_5g_pass','wifi_6g_ssid','wifi_6g_pass','wifi_guest_ssid','wifi_guest_pass','wifi_mlo_ssid','wifi_mlo_pass'],
-  'cfg-behavior': ['ping_seconds','run_destructive','headed','acs_api_url','acs_device_id','tauc_url','tauc_user']
+  'cfg-behavior': ['ping_seconds','run_destructive','headed','acs_api_url','acs_device_id','tauc_url']
 };
+const GROUP_TITLES = {'cfg-gateway':'Gateway & Interfaces','cfg-credentials':'Credentials','cfg-wifi':'Wi-Fi Networks','cfg-behavior':'Behavior & Management'};
 
 let cfg = {};
 let cases = {};
@@ -1554,7 +1583,7 @@ function updateRunningBadge() {
 function updateTopologyClients() {
   const ids = Object.keys(cases||{});
   $('#client-count').textContent = ids.length + ' cases';
-  $('#topo-clients').textContent = 'Clients: ' + ids.length;
+  $('#topo-clients').textContent = 'Test Cases: ' + ids.length;
 }
 
 function renderDashboard(){
@@ -1671,8 +1700,8 @@ function renderClientTable(){
       <td><span style="color:var(--text-primary)">${esc(meta.title)}</span></td>
       <td><span style="font-size:0.75rem;color:var(--text-muted)">Stage ${esc(meta.stage)}</span></td>
       <td><span class="badge ${cls}">${statusMap(status)}</span></td>
-      <td><span class="num">—</span></td>
-      <td><span class="num">—</span></td>
+      <td><span class="num">${esc(c.start||'—')}</span></td>
+      <td><span class="num">${esc(c.end||'—')}</span></td>
       <td class="actions">${action}${c.logs?' <button class="btn icon small" onclick="showLog(\''+esc(cid)+'\')">📄</button>':''}${imgs?' <button class="btn icon small" onclick="openGallery(\''+esc(cid)+'\')">🖼</button>':''}</td>
     </tr>`;
   }
@@ -1682,7 +1711,7 @@ function renderConfig(){
   Object.entries(GROUP_KEYS).forEach(([containerId,keys])=>{
     const el=document.getElementById(containerId);
     if(!el) return;
-    el.innerHTML=keys.map(k=>{
+    el.innerHTML='<div class="cfg-group-title">'+esc(GROUP_TITLES[containerId]||containerId)+'</div>'+keys.map(k=>{
       const v=cfg[k]!==undefined?cfg[k]:'';
       const isPassword=k.endsWith('_pass');
       const isBool=typeof v==='boolean';
@@ -1693,7 +1722,8 @@ function renderConfig(){
         ?`<input type='checkbox' ${checked} onchange="cfg['${k}']=this.checked" />`
         :`<input type='${inputType}' value='${esc(masked)}' onchange="cfg['${k}']=this.value" ${isPassword?'autocomplete="new-password"':''} />`;
       const toggle=isPassword?`<button class="pwd-toggle" type="button" onclick='togglePwd(this,${JSON.stringify(k)})' title='Show/Hide'>👁</button>`:'';
-      return `<div class="cfg-item"><label>${esc(k)}</label>${inputHtml}${toggle}</div>`;
+      const field=isPassword?`<div class="cfg-input-wrap">${inputHtml}${toggle}</div>`:inputHtml;
+      return `<div class="cfg-item"><label>${esc(k)}</label>${field}</div>`;
     }).join('');
   });
   const editor=$('#hl-editor');
@@ -1807,8 +1837,8 @@ function renderBoard(){
       <td><span style="color:var(--text-primary)">${esc(meta.title)}</span></td>
       <td><span style="font-size:0.75rem;color:var(--text-muted)">Stage ${esc(meta.stage)}</span></td>
       <td><span class="badge ${cls}">${statusMap(status)}</span></td>
-      <td><span class="num">—</span></td>
-      <td><span class="num">—</span></td>
+      <td><span class="num">${esc(c.start||'—')}</span></td>
+      <td><span class="num">${esc(c.end||'—')}</span></td>
       <td class="actions">${action}${c.logs?' <button class="btn icon small" onclick="showLog(\''+esc(cid)+'\')">📄</button>':''}${imgs?' <button class="btn icon small" onclick="openGallery(\''+esc(cid)+'\')">🖼</button>':''}</td>
     </tr>`;
   }
