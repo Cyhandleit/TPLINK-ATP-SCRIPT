@@ -293,7 +293,7 @@ class ATPWebEngine:
                 img3 = self._snap("2.2_WAN_Reconnected.png")
                 pub_ip = self._get_public_ip()
                 loss_8888, _, _, _ = run_ping_stats("8.8.8.8", count=4)
-                ok = bool(pub_ip and pub_ip != "0.0.0.0") and loss_8888 == 0.0
+                ok = bool(pub_ip and pub_ip != "0.0.0.0") and loss_8888 == 0.0  # nosec B104
                 detail = f"WAN reconnected, public IP={pub_ip}, ping 8.8.8.8 loss={loss_8888}%"
                 return ("PASS" if ok else "FAIL", detail, [img1, img2, img3], "\n".join(logs))
 
