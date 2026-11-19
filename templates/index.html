@@ -1,55 +1,55 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>TP-Link ATP 自动化测试平台</title>
+<title>TP-Link ATP Automation Test Platform</title>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* ---------- Design System (TP-Link Omada / Tauc / Aginet inspired) ---------- */
 :root {
-  /* 品牌色：TP-Link 深蓝 */
+  /* Brand color: TP-Link deep blue */
   --color-brand: #005a9e;
   --color-brand-hover: #004580;
 
-  /* 背景 */
+  /* Background */
   --color-bg: #f3f4f6;
   --color-surface: #ffffff;
   --color-sidebar: #ffffff;
   --color-topbar: #ffffff;
 
-  /* 边框与分割线 */
+  /* Borders and dividers */
   --color-border: #e5e7eb;
   --color-border-hover: #d1d5db;
   --color-divider: #f3f4f6;
 
-  /* 文字 */
+  /* Typography */
   --color-text: #111827;
   --color-text-secondary: #4b5563;
   --color-text-muted: #6b7280;
   --color-text-inverse: #ffffff;
 
-  /* 状态色 */
+  /* Status colors */
   --color-success: #15803d;
   --color-danger: #dc2626;
   --color-warn: #ca8a04;
   --color-info: #005a9e;
 
-  /* 排版 */
+  /* Layout */
   --font-sans: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  /* 阴影 */
+  /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
 
-  /* 圆角 */
+  /* Border radius */
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-pill: 9999px;
 
-  /* 间距 */
+  /* Spacing */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -104,11 +104,14 @@ p, span, div { font-size: 0.875rem; }
 }
 .sidebar-footer{padding:14px 18px;font-size:0.7rem;color:var(--color-text-muted);border-top:1px solid var(--color-border);flex-shrink:0}
 .sidebar-version{font-weight:700;color:var(--color-text-secondary);margin-bottom:4px}
-/* 移动端侧边栏遮罩层：打开侧边栏时显示，点击页面外区域关闭 */
+/* Mobile sidebar overlay: shown when sidebar is open, click outside area to close */
 .sidebar-overlay{
   position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:25;opacity:0;pointer-events:none;transition:opacity .25s ease;backdrop-filter:blur(2px)
 }
 .sidebar.open ~ .sidebar-overlay{opacity:1;pointer-events:auto}
+/* Desktop collapsed sidebar */
+.sidebar.collapsed{transform:translateX(-100%)}
+.app-body.sidebar-collapsed{margin-left:0}
 .sidebar-footer code{
   color:var(--color-brand);background:#eef4fb;padding:1px 5px;border-radius:4px;
 }
@@ -347,10 +350,10 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
 
 /* ---------- Desktop ---------- */
 @media (min-width:769px){
-  .sidebar{transform:translateX(0)!important}
-  .app-body{margin-left:240px!important}
-  /* 桌面端侧边栏常驻可见，☰ 切换按钮无需展示 */
-  .nav-toggle{display:none}
+  .sidebar{transform:translateX(0)}
+  .app-body{margin-left:240px}
+  /* Desktop sidebar: ☰ toggle button shown, sidebar can be collapsed/expanded */
+  .nav-toggle{display:block}
 }
 </style>
 </head>
@@ -362,14 +365,14 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
       <div class='brand-text'>ATP<small>Automation Test Platform</small></div>
     </div>
     <nav class='sidebar-nav'>
-      <a class='nav-item active' data-view='dashboard' onclick='navigate(event, this)'><span class='nav-icon'>📊</span><span class='nav-label'>概览</span></a>
-      <a class='nav-item' data-view='config' onclick='navigate(event, this)'><span class='nav-icon'>⚙️</span><span class='nav-label'>配置管理</span></a>
-      <a class='nav-item' data-view='board' onclick='navigate(event, this)'><span class='nav-icon'>📋</span><span class='nav-label'>测试看板</span></a>
-      <a class='nav-item' data-view='reports' onclick='navigate(event, this)'><span class='nav-icon'>📷</span><span class='nav-label'>报告与截图</span></a>
+      <a class='nav-item active' data-view='dashboard' onclick='navigate(event, this)'><span class='nav-icon'>📊</span><span class='nav-label'>Overview</span></a>
+      <a class='nav-item' data-view='config' onclick='navigate(event, this)'><span class='nav-icon'>⚙️</span><span class='nav-label'>Configuration</span></a>
+      <a class='nav-item' data-view='board' onclick='navigate(event, this)'><span class='nav-icon'>📋</span><span class='nav-label'>Test Board</span></a>
+      <a class='nav-item' data-view='reports' onclick='navigate(event, this)'><span class='nav-icon'>📷</span><span class='nav-label'>Reports & Screenshots</span></a>
     </nav>
     <div class='sidebar-footer'>
       <div class='sidebar-version'>TP-Link ATP · Web UI</div>
-      <div class='sidebar-hint'>截图红框高亮：在配置中填写 <code>case_highlights</code></div>
+      <div class='sidebar-hint'>Screenshot red box highlight: fill in <code>case_highlights</code> in config</div>
     </div>
   </aside>
   <div class='sidebar-overlay' id='sidebar-overlay' onclick='closeSidebar()'></div>
@@ -378,14 +381,14 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
     <header class='topbar'>
       <button class='nav-toggle' id='nav-toggle' onclick='toggleSidebar()'>☰</button>
       <div class='topbar-title'>
-        <span id='view-title'>概览</span>
+        <span id='view-title'>Overview</span>
         <span class='topbar-divider'>·</span>
-        <span class='topbar-sub' id='view-sub'>测试用例执行状态与快捷操作</span>
+        <span class='topbar-sub' id='view-sub'>Test case execution status and quick actions</span>
       </div>
       <div class='topbar-right'>
         <span class='busy-chip' id='busy-chip'><span class='busy-dot'></span>Running…</span>
-        <button class='btn ghost' id='btn-refresh' onclick='refresh()'>刷新</button>
-        <button class='btn success' id='btn-save' onclick='saveConfig()'>保存配置</button>
+        <button class='btn ghost' id='btn-refresh' onclick='refresh()'>Refresh</button>
+        <button class='btn success' id='btn-save' onclick='saveConfig()'>Save Config</button>
       </div>
     </header>
 
@@ -394,66 +397,66 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
       <!-- Dashboard -->
       <section class='view active' id='view-dashboard'>
         <header class='page-header' style='margin-bottom:16px'>
-          <h1 class='page-title' style='font-size:1.25rem;font-weight:800;color:var(--color-text);letter-spacing:-.02em'>TP-Link ATP 自动化测试平台</h1>
-          <p class='page-desc' style='font-size:0.85rem;color:var(--color-text-muted);margin-top:4px'>用例执行状态、进度与快速启动</p>
+          <h1 class='page-title' style='font-size:1.25rem;font-weight:800;color:var(--color-text);letter-spacing:-.02em'>TP-Link ATP Automation Test Platform</h1>
+          <p class='page-desc' style='font-size:0.85rem;color:var(--color-text-muted);margin-top:4px'>Test case execution status, progress and quick start</p>
         </header>
         <div class='grid grid-4'>
-          <div class='stat-card total'><div class='stat-value' id='stat-total'>-</div><div class='stat-label'>测试用例总数</div></div>
-          <div class='stat-card pass'><div class='stat-value' id='stat-pass'>-</div><div class='stat-label'>通过</div></div>
-          <div class='stat-card fail'><div class='stat-value' id='stat-fail'>-</div><div class='stat-label'>失败</div></div>
-          <div class='stat-card todo'><div class='stat-value' id='stat-todo'>-</div><div class='stat-label'>待执行 / 进行中</div></div>
+          <div class='stat-card total'><div class='stat-value' id='stat-total'>-</div><div class='stat-label'>Total Test Cases</div></div>
+          <div class='stat-card pass'><div class='stat-value' id='stat-pass'>-</div><div class='stat-label'>Passed</div></div>
+          <div class='stat-card fail'><div class='stat-value' id='stat-fail'>-</div><div class='stat-label'>Failed</div></div>
+          <div class='stat-card todo'><div class='stat-value' id='stat-todo'>-</div><div class='stat-label'>Pending / Running</div></div>
         </div>
         <div class='grid grid-4' style='margin-top:16px'>
           <div class='stat-card total'>
             <div style='display:flex;align-items:center;justify-content:space-between'>
               <div>
-                <div class='stat-label'>网关设备</div>
+                <div class='stat-label'>Gateway Device</div>
                 <div class='stat-value' id='stat-gateway'>-</div>
               </div>
-              <span class='status PENDING dot'>未连接</span>
+              <span class='status PENDING dot'>Not Connected</span>
             </div>
           </div>
           <div class='stat-card pass'>
             <div style='display:flex;align-items:center;justify-content:space-between'>
               <div>
-                <div class='stat-label'>在线 AP</div>
+                <div class='stat-label'>Online AP</div>
                 <div class='stat-value' id='stat-ap'>-</div>
               </div>
-              <span class='status PENDING dot'>未知</span>
+              <span class='status PENDING dot'>Unknown</span>
             </div>
           </div>
           <div class='stat-card fail'>
             <div style='display:flex;align-items:center;justify-content:space-between'>
               <div>
-                <div class='stat-label'>离线设备</div>
+                <div class='stat-label'>Offline Devices</div>
                 <div class='stat-value' id='stat-offline'>-</div>
               </div>
-              <span class='status PENDING dot'>未知</span>
+              <span class='status PENDING dot'>Unknown</span>
             </div>
           </div>
           <div class='stat-card todo'>
             <div style='display:flex;align-items:center;justify-content:space-between'>
               <div>
-                <div class='stat-label'>待采集</div>
+                <div class='stat-label'>Pending Collection</div>
                 <div class='stat-value' id='stat-pending'>-</div>
               </div>
-              <span class='status PENDING dot'>未知</span>
+              <span class='status PENDING dot'>Unknown</span>
             </div>
           </div>
         </div>
         <div class='grid grid-2'>
           <div class='card'>
-            <div class='card-header'><span class='card-title'>执行进度</span></div>
+            <div class='card-header'><span class='card-title'>Execution Progress</span></div>
             <div class='card-body'>
               <div class='progress'><div id='progress-bar' class='progress-bar'></div></div>
               <div class='progress-text' id='progress-text'>Ready</div>
             </div>
           </div>
           <div class='card'>
-            <div class='card-header'><span class='card-title'>快速启动</span></div>
+            <div class='card-header'><span class='card-title'>Quick Start</span></div>
             <div class='card-body'>
               <div class='runbar'>
-                <button class='btn success' id='btn-run-all-dashboard' onclick='runStage(event, "all")'>Run All · 全部运行</button>
+                <button class='btn success' id='btn-run-all-dashboard' onclick='runStage(event, "all")'>Run All</button>
               </div>
               <div class='stage-pills' style='margin-top:8px'>
                 <button class='btn ghost' onclick='runStage(event, "1")'>Stage 1</button>
@@ -462,16 +465,16 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
                 <button class='btn ghost' onclick='runStage(event, "4")'>Stage 4</button>
                 <button class='btn ghost' onclick='runStage(event, "5")'>Stage 5</button>
               </div>
-              <p class='hint'>用例执行通过后，截图自动保存到 <code>reports/</code>；在配置页填写 <code>case_highlights</code>，可在最终通过截图上以红框标注关键按钮/页面元素。</p>
+              <p class='hint'>After case execution passes, screenshots are auto-saved to <code>reports/</code>; fill in <code>case_highlights</code> on config page to red-box highlight key buttons/elements on final pass screenshot.</p>
             </div>
           </div>
         </div>
         <div class='card' style='margin-top:16px'>
-          <div class='card-header'><span class='card-title'>最近用例</span></div>
+          <div class='card-header'><span class='card-title'>Recent Cases</span></div>
           <div class='card-body'>
             <table class='cases-table compact' id='recent-table'>
               <thead>
-                <tr><th style='width:70px'>用例</th><th>标题</th><th style='width:70px'>Stage</th><th style='width:110px'>状态</th><th style='width:260px'>详情</th><th style='width:120px'>截图</th><th style='width:130px'>操作</th></tr>
+                <tr><th style='width:70px'>Case</th><th>Title</th><th style='width:70px'>Stage</th><th style='width:110px'>Status</th><th style='width:260px'>Details</th><th style='width:120px'>Screenshots</th><th style='width:130px'>Actions</th></tr>
               </thead>
               <tbody id='recent-table-body'></tbody>
             </table>
@@ -482,45 +485,45 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
       <!-- Config -->
       <section class='view' id='view-config'>
         <header class='page-header' style='margin-bottom:16px'>
-          <h2 class='page-title' style='font-size:1.15rem;font-weight:800;color:var(--color-text);letter-spacing:-.01em'>配置管理</h2>
-          <p class='page-desc' style='font-size:0.85rem;color:var(--color-text-muted);margin-top:4px'>网关、凭证、无线与行为参数；修改后点击“保存配置”写入 config.json</p>
+          <h2 class='page-title' style='font-size:1.15rem;font-weight:800;color:var(--color-text);letter-spacing:-.01em'>Configuration</h2>
+          <p class='page-desc' style='font-size:0.85rem;color:var(--color-text-muted);margin-top:4px'>Gateway, credentials, wireless and behavior parameters; click "Save Config" to write to config.json</p>
         </header>
         <div class='grid grid-2'>
           <div class='card'>
             <div class='card-header'>
-              <span class='card-title'>🌐 网关设置 <span class='group-badge'>gateway</span></span>
+              <span class='card-title'>🌐 Gateway Settings <span class='group-badge'>gateway</span></span>
             </div>
             <div class='card-body'><div class='cfg-group' id='cfg-gateway'></div></div>
           </div>
           <div class='card'>
             <div class='card-header'>
-              <span class='card-title'>🔑 登录凭证 <span class='group-badge'>credentials</span></span>
+              <span class='card-title'>🔑 Login Credentials <span class='group-badge'>credentials</span></span>
             </div>
             <div class='card-body'><div class='cfg-group' id='cfg-credentials'></div></div>
           </div>
           <div class='card'>
             <div class='card-header'>
-              <span class='card-title'>📶 无线设置 <span class='group-badge'>wifi</span></span>
+              <span class='card-title'>📶 Wireless Settings <span class='group-badge'>wifi</span></span>
             </div>
             <div class='card-body'><div class='cfg-group' id='cfg-wifi'></div></div>
           </div>
           <div class='card'>
             <div class='card-header'>
-              <span class='card-title'>🧪 测试行为 <span class='group-badge'>behavior</span></span>
+              <span class='card-title'>🧪 Test Behavior <span class='group-badge'>behavior</span></span>
             </div>
             <div class='card-body'><div class='cfg-group' id='cfg-behavior'></div></div>
           </div>
         </div>
         <div class='card' style='margin-top:16px'>
           <div class='card-header'>
-            <span class='card-title'>📷 截图红框高亮选择器 <span class='badge' style='background:#eef4fb;color:var(--color-success)'>case_highlights</span></span>
+            <span class='card-title'>📷 Screenshot Red Box Highlight Selector <span class='badge' style='background:#eef4fb;color:var(--color-success)'>case_highlights</span></span>
           </div>
           <div class='card-body'>
-            <p class='hint'>键为用例 ID，值为在最终通过截图上打红框的 CSS 选择器列表。例如：{'1.1': ['#login-btn', 'text=Basic']}，选择器与路由器型号（Omada / 传统 SMB UI）相关，不匹配时静默跳过。</p>
+            <p class='hint'>Key is case ID, value is CSS selector list to draw red box on final pass screenshot. Example: {'1.1': ['#login-btn', 'text=Basic']}, selector related to router model (Omada / traditional SMB UI), silently skipped if no match.</p>
             <div class='field' style='margin-top:10px'>
               <textarea id='hl-editor' rows='6' style='width:100%;padding:10px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface);font-family:ui-monospace,Consolas,monospace;font-size:0.8rem;resize:vertical;color:var(--color-text)'></textarea>
             </div>
-            <p class='hint'>修改后点击顶部“保存配置”持久化；保存后随后执行的用例通过时即生效。</p>
+            <p class='hint'>After modification, click "Save Config" at top to persist; takes effect when subsequent cases pass after saving.</p>
           </div>
         </div>
       </section>
@@ -528,11 +531,11 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
       <!-- Test board -->
       <section class='view' id='view-board'>
         <header class='page-header' style='margin-bottom:16px'>
-          <h2 class='page-title' style='font-size:1.15rem;font-weight:800;color:var(--color-text);letter-spacing:-.01em'>测试看板</h2>
-          <p class='page-desc' style='font-size:0.85rem;color:var(--color-text-muted);margin-top:4px'>按 Stage 排序的用例列表；点击缩略图查看大图，红框标注自动通过截图中的关键元素</p>
+          <h2 class='page-title' style='font-size:1.15rem;font-weight:800;color:var(--color-text);letter-spacing:-.01em'>Test Board</h2>
+          <p class='page-desc' style='font-size:0.85rem;color:var(--color-text-muted);margin-top:4px'>Case list sorted by Stage; click thumbnail to view large image, red box marks key elements in auto-pass screenshots</p>
         </header>
         <div class='runbar' style='margin-bottom:0'>
-          <button class='btn success' id='btn-run-all-board' onclick='runStage(event, "all")'>Run All · 全部运行</button>
+          <button class='btn success' id='btn-run-all-board' onclick='runStage(event, "all")'>Run All</button>
           <div class='stage-pills' style='margin-left:8px'>
             <button class='btn ghost' onclick='runStage(event, "1")'>Stage 1</button>
             <button class='btn ghost' onclick='runStage(event, "2")'>Stage 2</button>
@@ -540,16 +543,16 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
             <button class='btn ghost' onclick='runStage(event, "4")'>Stage 4</button>
             <button class='btn ghost' onclick='runStage(event, "5")'>Stage 5</button>
           </div>
-          <button class='btn ghost small' onclick='refresh()'>刷新状态</button>
+          <button class='btn ghost small' onclick='refresh()'>Refresh Status</button>
         </div>
         <div class='card' style='margin-top:14px'>
           <div class='card-body'>
             <table class='cases-table'>
               <thead>
                 <tr>
-                  <th style='width:70px'>用例</th><th>标题</th><th style='width:70px'>Stage</th>
-                  <th style='width:110px'>状态</th><th style='width:280px'>详情</th>
-                  <th style='width:120px'>耗时</th><th style='width:110px'>截图</th><th style='width:150px'>操作</th>
+                  <th style='width:70px'>Case</th><th>Title</th><th style='width:70px'>Stage</th>
+                  <th style='width:110px'>Status</th><th style='width:280px'>Details</th>
+                  <th style='width:120px'>Duration</th><th style='width:110px'>Screenshots</th><th style='width:150px'>Actions</th>
                 </tr>
               </thead>
               <tbody id='tbl-body'></tbody>
@@ -561,8 +564,8 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
       <!-- Reports / gallery -->
       <section class='view' id='view-reports'>
         <header class='page-header' style='margin-bottom:16px'>
-          <h2 class='page-title' style='font-size:1.15rem;font-weight:800;color:var(--color-text);letter-spacing:-.01em'>报告与截图</h2>
-          <p class='page-desc' style='font-size:0.85rem;color:var(--color-text-muted);margin-top:4px'>历史报告目录与截图库；点击截图查看大图</p>
+          <h2 class='page-title' style='font-size:1.15rem;font-weight:800;color:var(--color-text);letter-spacing:-.01em'>Reports & Screenshots</h2>
+          <p class='page-desc' style='font-size:0.85rem;color:var(--color-text-muted);margin-top:4px'>Historical report directory and screenshot library; click screenshot to view large image</p>
         </header>
         <div id='reports-grid' class='reports-grid'></div>
       </section>
@@ -578,8 +581,8 @@ textarea.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1) !important}
       <img id='lightbox-img' src='' alt=''>
       <div class='lightbox-caption' id='lightbox-caption'></div>
       <div class='lightbox-actions'>
-        <button class='btn ghost small' onclick='openInNewTab()'>在新标签页打开</button>
-        <button class='btn ghost small' onclick='closeLightbox()'>关闭</button>
+        <button class='btn ghost small' onclick='openInNewTab()'>Open in New Tab</button>
+        <button class='btn ghost small' onclick='closeLightbox()'>Close</button>
       </div>
     </div>
   </div>
@@ -653,20 +656,22 @@ function navigate(ev, el){
   closeSidebar();
   $('#view-title').textContent = el.querySelector('.nav-label').textContent;
   $('#view-sub').textContent = {
-    dashboard:'测试用例执行状态与快速启动',
-    config:'网关、凭证、无线与行为参数；修改后点击“保存配置”写入 config.json',
-    board:'按 Stage 排序的用例列表；点击缩略图查看大图，红框标注自动通过截图中的关键元素',
-    reports:'历史报告目录与截图库；点击截图查看大图'
+    dashboard:'Test case execution status and quick start',
+    config:'Gateway, credentials, wireless and behavior parameters; click "Save Config" to write to config.json',
+    board:'Case list sorted by Stage; click thumbnail to view large image, red box marks key elements in auto-pass screenshots',
+    reports:'Historical report directory and screenshot library; click screenshot to view large image'
   }[view] || '';
   if(view === 'reports') loadReports();
   if(view === 'dashboard') renderDashboard();
   if(view === 'board') renderBoard();
 }
 function toggleSidebar(){
-  const s=$('#sidebar'); s.classList.toggle('open');
+  const s=$('#sidebar'); s.classList.toggle('collapsed');
+  document.body.classList.toggle('sidebar-collapsed');
 }
 function closeSidebar(){
-  const s=$('#sidebar'); s.classList.remove('open');
+  const s=$('#sidebar'); s.classList.remove('collapsed');
+  document.body.classList.remove('sidebar-collapsed');
 }
 document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeSidebar(); });
 
@@ -686,7 +691,7 @@ async function load(){
     $('#busy-chip').style.display = busy ? 'inline-flex' : 'none';
     if(activeView === 'reports') renderReports();
   }catch(e){console.error('load failed',e);}
-  // 自动恢复按钮：当所有用例都不再运行时，重置 busy 并恢复按钮状态
+  // Auto-restore buttons: when all cases are no longer running, reset busy and restore button states
   if (busy && Object.values(cases||{}).every(c => (c.status||'PENDING').toUpperCase() !== 'RUNNING')) {
     busy = false;
     document.querySelectorAll('button').forEach(btn => {
@@ -724,7 +729,7 @@ function renderProgress(p){
   const bar=$('#progress-bar'); const txt=$('#progress-text');
   if(bar){bar.style.width=pct+'%';}
   const running = Object.values(cases||{}).filter(c=>(c.status||'PENDING').toUpperCase()==='RUNNING').length;
-  txt.textContent = running ? `${running} 个用例执行中` : `全部完成 (${pct}%)`;
+  txt.textContent = running ? `${running} cases running` : `All completed (${pct}%)`;
 }
 function renderDashboard(){
   renderStats();
@@ -741,7 +746,7 @@ function renderDashboard(){
     const cls=status.toLowerCase();
     let imgs='';
     for(const s of (c.screenshots||[])){
-      imgs+=`<a onclick="openLightbox('${esc(s)}', '${esc(cid)} • ${esc(meta.title)}')" style='cursor:pointer'><img src='${esc(s)}' alt='${esc(cid)} ${esc(meta.title)} 截图' onerror="this.style.display='none'" alt='${esc(cid)} ${esc(meta.title)} 截图'></a>`;
+      imgs+=`<a onclick="openLightbox('${esc(s)}', '${esc(cid)} • ${esc(meta.title)}')" style='cursor:pointer'><img src='${esc(s)}' alt='${esc(cid)} ${esc(meta.title)} screenshot' onerror="this.style.display='none'" alt='${esc(cid)} ${esc(meta.title)} screenshot'></a>`;
     }
     let action='';
     if(status==='FAIL') action+=`<button class='btn small danger' onclick="runOne(event, '${esc(cid)}')">Retry</button>`;
@@ -783,7 +788,7 @@ function renderConfig(){
   if(editor){
     editor.value = JSON.stringify(cfg.case_highlights||{}, null, 2);
     editor.onchange = function(e){
-      try{cfg.case_highlights = JSON.parse(e.target.value) || {}; editor.classList.remove('invalid');}catch{editor.classList.add('invalid'); toast('case_highlights JSON 格式错误');}
+      try{cfg.case_highlights = JSON.parse(e.target.value) || {}; editor.classList.remove('invalid');}catch{editor.classList.add('invalid'); toast('case_highlights JSON format error');}
     };
     editor.classList.remove('invalid');
   }
@@ -806,9 +811,9 @@ function renderBoard(){
     const timeHtml = start||end ? `${start}${end?' - '+end:''}`:'';
     let imgs='';
     for(const s of (c.screenshots||[])){
-      imgs+=`<a onclick="openLightbox('${esc(s)}', '${esc(cid)} • ${esc(meta.title)}')" style='cursor:pointer'><img src='${esc(s)}' alt='${esc(cid)} ${esc(meta.title)} 截图' onerror="this.style.display='none'" alt='${esc(cid)} ${esc(meta.title)} 截图'></a>`;
+      imgs+=`<a onclick="openLightbox('${esc(s)}', '${esc(cid)} • ${esc(meta.title)}')" style='cursor:pointer'><img src='${esc(s)}' alt='${esc(cid)} ${esc(meta.title)} screenshot' onerror="this.style.display='none'" alt='${esc(cid)} ${esc(meta.title)} screenshot'></a>`;
     }
-    const galleryBtn = imgs?`<button class='btn icon small' onclick="openGallery('${esc(cid)}', [${(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')}])\" title='查看截图'>🖼</button>`:'';
+    const galleryBtn = imgs?`<button class='btn icon small' onclick="openGallery('${esc(cid)}', [${(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')}])\" title='View Screenshot'>🖼</button>`:'';
     let action='';
     if(status==='FAIL'){
       action+=`<button class='btn small danger' onclick="runOne(event, '${esc(cid)}')">Retry</button>`;
@@ -837,12 +842,12 @@ function renderBoard(){
 function renderReports(){
   const el=$('#reports-grid');
   if(!el || activeView!=='reports') return;
-  if(!reports.length){el.innerHTML=`<div class='empty-state'><p>暂无报告目录，运行用例后会在 reports/ 下产生截图与报告</p></div>`; return;}
+  if(!reports.length){el.innerHTML=`<div class='empty-state'><p>No report directories yet; screenshots and reports will be generated in reports/ after running cases</p></div>`; return;}
   el.innerHTML=reports.map(r=>{
-    const thumbs=(r.screenshots||[]).slice(0,6).map(s=>`<a onclick=\"openLightbox('${esc(s)}', '${esc(r.name)} • 截图')\" style='cursor:pointer'><img src='${esc(s)}' alt='${esc(r.name)} • 截图' onerror="this.style.display='none'" loading='lazy'></a>`).join('');
-    const more = (r.screenshots||[]).length > 6 ? `<span class='status PENDING dot'>+${r.screenshots.length-6} 张</span>` : '';
+    const thumbs=(r.screenshots||[]).slice(0,6).map(s=>`<a onclick=\"openLightbox('${esc(s)}', '${esc(r.name)} • screenshot')\" style='cursor:pointer'><img src='${esc(s)}' alt='${esc(r.name)} • screenshot' onerror="this.style.display='none'" loading='lazy'></a>`).join('');
+    const more = (r.screenshots||[]).length > 6 ? `<span class='status PENDING dot'>+${r.screenshots.length-6} more</span>` : '';
     return `<div class='card report-card'>
-      <header><span class='report-name'>${esc(r.name)}</span><span class='report-meta'>${r.file_count||0} 文件 ${more}</span></header>
+      <header><span class='report-name'>${esc(r.name)}</span><span class='report-meta'>${r.file_count||0} files ${more}</span></header>
       <p class='hint' style='margin:6px 0 8px'>${esc(r.path||'')}</p>
       <div class='report-thumbs'>${thumbs}</div>
     </div>`;
@@ -851,18 +856,18 @@ function renderReports(){
 
 /* ---------- Actions ---------- */
 async function runStage(event, stage){
-  if(busy){toast('已有测试在执行，请稍后'); return;}
-  // 禁用所有 Run All 按钮并显示 loading
+  if(busy){toast('Test in progress, please wait'); return;}
+  // Disable all Run All buttons and show loading
   document.querySelectorAll("button[onclick*=\"runStage('all')\"]").forEach(btn => {
     btn.disabled = true;
     btn.classList.add('btn-loading');
     btn.dataset.originalText = btn.textContent;
-    btn.textContent = '运行中…';
+    btn.textContent = 'Running…';
   });
   const r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stage,config:cfg})});
   const d=await r.json();
-  if(!d.ok){toast(d.error||'提交失败'); restoreRunAllButtons(); return;}
-  toast('已提交：Stage '+stage);
+  if(!d.ok){toast(d.error||'Submit failed'); restoreRunAllButtons(); return;}
+  toast('Submitted: Stage '+stage);
   busy=true; poll();
 }
 
@@ -875,34 +880,34 @@ function restoreRunAllButtons(){
   });
 }
 async function runOne(event, cid){
-  if(busy){toast('已有测试在执行，请稍后'); return;}
+  if(busy){toast('Test in progress, please wait'); return;}
   const btn = event.currentTarget;
   btn.disabled = true;
   btn.classList.add('btn-loading');
   btn.dataset.originalText = btn.textContent;
-  btn.textContent = '运行中…';
+  btn.textContent = 'Running…';
   const r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({case:cid,config:cfg})});
   const d=await r.json();
   if(!d.ok){
-    toast(d.error||'提交失败');
+    toast(d.error||'Submit failed');
     btn.disabled = false;
     btn.classList.remove('btn-loading');
     if (btn.dataset.originalText) btn.textContent = btn.dataset.originalText;
     delete btn.dataset.originalText;
     return;
   }
-  toast('运行 '+cid);
+  toast('Running '+cid);
   busy=true; poll();
 }
 async function saveConfig(){
   const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
   const d=await r.json();
-  const b=document.createElement('span'); b.className='saved-badge'; b.textContent=d.ok?'已保存':'保存失败'; b.style.color=d.ok?'var(--color-success)':'var(--color-danger)';
+  const b=document.createElement('span'); b.className='saved-badge'; b.textContent=d.ok?'Saved':'Save Failed'; b.style.color=d.ok?'var(--color-success)':'var(--color-danger)';
   const btn=$('#btn-save'); btn.appendChild(b);
   setTimeout(()=>b.remove(),1500);
-  toast(d.ok?'配置已保存':(d.error||'保存失败'));
+  toast(d.ok?'Config saved':(d.error||'Save Failed'));
 }
-async function refresh(){load(); toast('已刷新');}
+async function refresh(){load(); toast('Refreshed');}
 function poll(){setTimeout(load,2000);}
 
 /* ---------- Password toggle ---------- */
@@ -919,12 +924,12 @@ function openGallery(cid, imgs){
   const meta=CASE_META[cid]||{title:cid};
   const items=imgs.length? imgs.map((s,i)=>`
     <div style='border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#000;display:flex;flex-direction:column'>
-      <img src='${esc(s)}' style='width:100%;height:auto;max-height:48vh;object-fit:contain' alt='${esc(cid)} ${esc(meta.title)} 截图 ${i+1}/${imgs.length}' onerror="this.style.display='none'" loading='lazy'>
-      <div class='gallery-caption'>${cid} • ${meta.title} • 截图 ${i+1}/${imgs.length}</div>
+      <img src='${esc(s)}' style='width:100%;height:auto;max-height:48vh;object-fit:contain' alt='${esc(cid)} ${esc(meta.title)} screenshot ${i+1}/${imgs.length}' onerror="this.style.display='none'" loading='lazy'>
+      <div class='gallery-caption'>${cid} • ${meta.title} • screenshot ${i+1}/${imgs.length}</div>
     </div>
-  `).join(''):`<div class='empty-state' style='padding:24px'>暂无截图</div>`;
+  `).join(''):`<div class='empty-state' style='padding:24px'>No screenshots</div>`;
   const body=`<div style='padding:20px;display:flex;flex-direction:column;gap:16px'>${items}</div>`;
-  openLightboxInline(body, `${cid} • ${meta.title} 截图集`);
+  openLightboxInline(body, `${cid} • ${meta.title} Screenshot Gallery`);
 }
 function openLightbox(src, caption){
   const modal=$('#lightbox'); const img=$('#lightbox-img'); const cap=$('#lightbox-caption');
