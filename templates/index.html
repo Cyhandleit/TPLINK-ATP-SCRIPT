@@ -924,6 +924,19 @@ table.clients button[disabled] {
 .pwd-toggle { background: none; border: none; cursor: pointer; font-size: 0.9rem; padding: var(--space-1); color: var(--text-muted); }
 .pwd-toggle:hover { color: var(--text-primary); }
 @media (max-width: 600px) { .cfg-item { grid-template-columns: 1fr; gap: var(--space-1); } }
+
+/* ---------- Stats card layout ---------- */
+#stats-body { display: flex; flex-direction: column; gap: var(--space-4); }
+
+/* ---------- Test Board mode: focused execution view ---------- */
+.bento.board-mode { grid-template-columns: 1fr; }
+.bento.board-mode #stats-body { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)) auto; align-items: end; gap: var(--space-4); }
+@media (max-width: 900px) {
+  .bento.board-mode #stats-body { grid-template-columns: repeat(2, 1fr); }
+  .bento.board-mode #stats-body > div:last-child { grid-column: 1 / -1; }
+}
+tr.stage-group-row td { background: var(--canvas); font-weight: 700; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--border); }
+table.clients tr.stage-group-row:hover td { background: var(--canvas); }
 </style>
 </head>
 <body>
@@ -1013,7 +1026,7 @@ table.clients button[disabled] {
        ======================================================================== -->
   <!-- Main workspace: Bento card grid -->
   <main class="workspace">
-    <div class="bento bento-3">
+    <div class="bento bento-3" id="bento-top">
       <!-- ========================================================================
            STEP 1 LAND + STEP 2 ORIENT
            Network Topology Hero (.bento-1 full-width)
@@ -1096,7 +1109,7 @@ table.clients button[disabled] {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px;color:var(--brand)"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M3 9h18M9 21V9"/></svg>
           <div class="card-title">Overview</div>
         </header>
-        <div class="card-body" id="stats-body" style="display:flex;flex-direction:column;gap:var(--space-4)">
+        <div class="card-body" id="stats-body">
           <div class="stat">
             <div class="label label-secondary">Total Cases</div>
             <div class="value metric-primary" id="stat-total">-</div>
@@ -1403,7 +1416,16 @@ function navigate(ev, view){
   const t = Array.from($$('.nav-tab')).find(n=>(n.getAttribute('onclick')||'').indexOf("navigate(event,'"+view+"')")!==-1);
   if(t){ t.classList.add('active'); t.setAttribute('aria-selected','true'); }
   $$('section.card').forEach(s=>s.style.display='none');
-  if(view==='dashboard' || view==='board'){ $$('#card-topology, #card-telemetry, #card-stats, #card-clients').forEach(s=>s.style.display='block'); }
+  const bentoTop=document.getElementById('bento-top');
+  if(view==='dashboard'){
+    $$('#card-topology, #card-telemetry, #card-stats, #card-clients').forEach(s=>s.style.display='block');
+    if(bentoTop) bentoTop.classList.remove('board-mode');
+  } else if(view==='board'){
+    $('#card-topology').style.display='none';
+    $('#card-telemetry').style.display='none';
+    $$('#card-stats, #card-clients').forEach(s=>s.style.display='block');
+    if(bentoTop) bentoTop.classList.add('board-mode');
+  }
   else if(view==='reports'){ $$('#card-reports').forEach(s=>s.style.display='block'); }
   else if(view==='config'){ $$('#card-config').forEach(s=>s.style.display='block'); }
   if(view === 'reports') loadReports();
@@ -1439,7 +1461,7 @@ async function load(forceConfig=false){
     lastLoadError = null;
     renderStats();
     renderDashboard();
-    renderBoard();
+    if(activeView==='board') renderBoard();
     renderProgress(d.progress||{});
     $('#busy-chip') && ($('#busy-chip').style.display = busy ? 'inline-flex' : 'none');
     if(activeView === 'reports') renderReports();
@@ -1666,56 +1688,22 @@ function renderDashboard(){
   }
 }
 
-function renderClientTable(){
-  const tbody=$('#client-table-body');
-  tbody.innerHTML='';
-  const ids=Object.keys(cases||{}).sort((a,b)=>(CASE_META[a]||{stage:0}).stage-(CASE_META[b]||{stage:0}).stage || a.localeCompare(b));
-  
-  if (ids.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="7" style="padding:var(--space-8)">
-          <div class="empty-functional" style="max-width: 400px; margin: 0 auto;">
-            <div class="empty-functional__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="5" r="1"/>
-                <circle cx="6" cy="12" r="1"/>
-                <circle cx="18" cy="12" r="1"/>
-                <line x1="12" y1="5" x2="12" y2="9"/>
-                <line x1="6" y1="12" x2="6" y2="16"/>
-                <line x1="18" y1="12" x2="18" y2="16"/>
-              </svg>
-            </div>
-            <div class="empty-functional__content">
-              <div class="empty-functional__title">No clients in current run</div>
-              <p class="empty-functional__desc">Click <strong>Run All</strong> to start testing.</p>
-              <div class="empty-functional__action">
-                <button class="btn primary" onclick="runStage(event, '1')">Run All</button>
-              </div>
-            </div>
-          </div>
-        </td>
-      </tr>
-    `;
-    return;
+function caseRowHtml(cid){
+  const c=cases[cid]||{};
+  const meta=CASE_META[cid]||{title:cid,stage:''};
+  const status=(c.status||'PENDING').toUpperCase();
+  const cls=status.toLowerCase();
+  let imgs='';
+  for(const s of (c.screenshots||[])){
+    imgs+=`<a onclick="openLightbox('${esc(s)}', '${esc(cid)} • ${esc(meta.title)}')" style="cursor:pointer"><img src='${esc(s)}' alt='${esc(cid)} screenshot' onerror="this.style.display='none'" loading='lazy'></a>`;
   }
-  
-  for(const cid of ids){
-    const c=cases[cid]||{};
-    const meta=CASE_META[cid]||{title:cid,stage:''};
-    const status=(c.status||'PENDING').toUpperCase();
-    const cls=status.toLowerCase();
-    let imgs='';
-    for(const s of (c.screenshots||[])){
-      imgs+=`<a onclick="openLightbox('${esc(s)}', '${esc(cid)} • ${esc(meta.title)}')" style="cursor:pointer"><img src='${esc(s)}' alt='${esc(cid)} screenshot' onerror="this.style.display='none'" loading='lazy'></a>`;
-    }
-    let action='';
-    if(status==='FAIL') action+=`<button class="btn small destructive" onclick="runOne(event, '${esc(cid)}')">Retry</button>`;
-    else if(status==='PENDING'||!status) action+=`<button class="btn small ghost" onclick="runOne(event, '${esc(cid)}')">Run</button>`;
-    else if(status==='RUNNING') action+=`<span class="badge ok"><span class="dot"></span>Running</span>`;
-    else if(status==='PASS') action+=`<button class="btn small ghost" onclick="runOne(event, '${esc(cid)}')">Run again</button>`;
-    else if(status==='SKIP') action+=`<span class="badge" style="background:var(--border);color:var(--text-muted)"><span class="dot" style="background:var(--text-muted)"></span>Skipped</span>`;
-    tbody.innerHTML+=`<tr>
+  let action='';
+  if(status==='FAIL') action+=`<button class="btn small destructive" onclick="runOne(event, '${esc(cid)}')">Retry</button>`;
+  else if(status==='PENDING'||!status) action+=`<button class="btn small ghost" onclick="runOne(event, '${esc(cid)}')">Run</button>`;
+  else if(status==='RUNNING') action+=`<span class="badge ok"><span class="dot"></span>Running</span>`;
+  else if(status==='PASS') action+=`<button class="btn small ghost" onclick="runOne(event, '${esc(cid)}')">Run again</button>`;
+  else if(status==='SKIP') action+=`<span class="badge" style="background:var(--border);color:var(--text-muted)"><span class="dot" style="background:var(--text-muted)"></span>Skipped</span>`;
+  return `<tr>
       <td><span class="case-id">${esc(cid)}</span></td>
       <td><span style="color:var(--text-primary)">${esc(meta.title)}</span></td>
       <td><span style="font-size:0.75rem;color:var(--text-muted)">Stage ${esc(meta.stage)}</span></td>
@@ -1724,8 +1712,38 @@ function renderClientTable(){
       <td><span class="num">${esc(c.end||'—')}</span></td>
       <td class="actions">${action}${c.logs?' <button class="btn icon small" onclick="showLog(\''+esc(cid)+'\')">📄</button>':''}${imgs?' <button class="btn icon small" onclick="openGallery(\''+esc(cid)+'\')">🖼</button>':''}</td>
     </tr>`;
-  }
 }
+
+const EMPTY_TABLE_HTML = `
+      <tr>
+        <td colspan="7" style="padding:var(--space-8)">
+          <div class="empty-functional" style="max-width: 400px; margin: 0 auto;">
+            <div class="empty-functional__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="5" r="1"/><circle cx="6" cy="12" r="1"/><circle cx="18" cy="12" r="1"/>
+                <line x1="12" y1="5" x2="12" y2="9"/><line x1="6" y1="12" x2="6" y2="16"/><line x1="18" y1="12" x2="18" y2="16"/>
+              </svg>
+            </div>
+            <div class="empty-functional__content">
+              <div class="empty-functional__title">No test cases loaded</div>
+              <p class="empty-functional__desc">Click <strong>Run All</strong> to start testing.</p>
+              <div class="empty-functional__action">
+                <button class="btn primary" onclick="runStage(event, 'all')">Run All</button>
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>`;
+
+function renderClientTable(){
+  const tbody=$('#client-table-body');
+  const ids=Object.keys(cases||{}).sort((a,b)=>((CASE_META[a]||{}).stage||0)-((CASE_META[b]||{}).stage||0) || a.localeCompare(b,undefined,{numeric:true}));
+  tbody.innerHTML = ids.length ? ids.map(caseRowHtml).join('') : EMPTY_TABLE_HTML;
+}
+
+const STAGE_NAMES={'1':'Device Access & WAN','2':'LAN & Wi-Fi Performance','3':'Router Core Functions','4':'ACS / TR-069 Management','5':'Reboot, Firmware & Stability'};
+
+
 
 function renderConfig(){
   Object.entries(GROUP_KEYS).forEach(([containerId,keys])=>{
@@ -1806,63 +1824,18 @@ function renderConfig(){
 
 function renderBoard(){
   const tbody=$('#client-table-body');
-  tbody.innerHTML='';
-  const ids=Object.keys(cases||{}).sort((a,b)=>(CASE_META[a]||{stage:0}).stage-(CASE_META[b]||{stage:0}).stage || a.localeCompare(b));
-  
-  if (ids.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="7" style="padding:var(--space-8)">
-          <div class="empty-functional" style="max-width: 400px; margin: 0 auto;">
-            <div class="empty-functional__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="5" r="1"/>
-                <circle cx="6" cy="12" r="1"/>
-                <circle cx="18" cy="12" r="1"/>
-                <line x1="12" y1="5" x2="12" y2="9"/>
-                <line x1="6" y1="12" x2="6" y2="16"/>
-                <line x1="18" y1="12" x2="18" y2="16"/>
-              </svg>
-            </div>
-            <div class="empty-functional__content">
-              <div class="empty-functional__title">No clients in current run</div>
-              <p class="empty-functional__desc">Click <strong>Run All</strong> to start testing.</p>
-              <div class="empty-functional__action">
-                <button class="btn primary" onclick="runStage(event, '1')">Run All</button>
-              </div>
-            </div>
-          </div>
-        </td>
-      </tr>
-    `;
-    return;
+  const ids=Object.keys(cases||{});
+  if(!ids.length){ tbody.innerHTML=EMPTY_TABLE_HTML; return; }
+  const stages=[...new Set(ids.map(cid=>String((CASE_META[cid]||{}).stage||'?')))].sort();
+  let html='';
+  for(const st of stages){
+    const group=ids.filter(cid=>String((CASE_META[cid]||{}).stage||'?')===st).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+    const cnt=s=>group.filter(cid=>((cases[cid]||{}).status||'PENDING').toUpperCase()===s).length;
+    const pass=cnt('PASS'), fail=cnt('FAIL'), run=cnt('RUNNING');
+    html+=`<tr class="stage-group-row"><td colspan="7">Stage ${esc(st)} — ${esc(STAGE_NAMES[st]||'Other')} · ${group.length} cases · ${pass} passed · ${fail} failed${run?` · <span style="color:var(--warn)">${run} running</span>`:''}</td></tr>`;
+    html+=group.map(caseRowHtml).join('');
   }
-  
-  for(const cid of ids){
-    const c=cases[cid]||{};
-    const meta=CASE_META[cid]||{title:cid,stage:''};
-    const status=(c.status||'PENDING').toUpperCase();
-    const cls=status.toLowerCase();
-    let imgs='';
-    for(const s of (c.screenshots||[])){
-      imgs+=`<a onclick="openLightbox('${esc(s)}', '${esc(cid)} • ${esc(meta.title)}')" style="cursor:pointer"><img src='${esc(s)}' alt='${esc(cid)} screenshot' onerror="this.style.display='none'" loading='lazy'></a>`;
-    }
-    let action='';
-    if(status==='FAIL') action+=`<button class="btn small destructive" onclick="runOne(event, '${esc(cid)}')">Retry</button>`;
-    else if(status==='PENDING'||!status) action+=`<button class="btn small ghost" onclick="runOne(event, '${esc(cid)}')">Run</button>`;
-    else if(status==='RUNNING') action+=`<span class="badge ok"><span class="dot"></span>Running</span>`;
-    else if(status==='PASS') action+=`<button class="btn small ghost" onclick="runOne(event, '${esc(cid)}')">Run again</button>`;
-    else if(status==='SKIP') action+=`<span class="badge" style="background:var(--border);color:var(--text-muted)"><span class="dot" style="background:var(--text-muted)"></span>Skipped</span>`;
-    tbody.innerHTML+=`<tr>
-      <td><span class="case-id">${esc(cid)}</span></td>
-      <td><span style="color:var(--text-primary)">${esc(meta.title)}</span></td>
-      <td><span style="font-size:0.75rem;color:var(--text-muted)">Stage ${esc(meta.stage)}</span></td>
-      <td><span class="badge ${cls}">${statusMap(status)}</span></td>
-      <td><span class="num">${esc(c.start||'—')}</span></td>
-      <td><span class="num">${esc(c.end||'—')}</span></td>
-      <td class="actions">${action}${c.logs?' <button class="btn icon small" onclick="showLog(\''+esc(cid)+'\')">📄</button>':''}${imgs?' <button class="btn icon small" onclick="openGallery(\''+esc(cid)+'\')">🖼</button>':''}</td>
-    </tr>`;
-  }
+  tbody.innerHTML=html;
 }
 
 function renderReports(){
