@@ -297,12 +297,32 @@ def connect_wifi(ssid, password):
         return code == 0, out
 
 
-def run_ping_stats(target, count=10, ipv6=False):
+def run_ping_stats(target, count=10, duration_seconds=None, ipv6=False):
     is_win = platform.system() == "Windows"
     flag_v6 = ["-6"] if ipv6 else ["-4"]
-    flag_cnt = ["-n", str(count)] if is_win else ["-c", str(count)]
-    cmd = ["ping"] + flag_v6 + flag_cnt + [target]
-    code, out = run_cmd(cmd, timeout=count * 2 + 15)
+
+    if duration_seconds is not None:
+        # Time-based: ping continuously for duration_seconds seconds,
+        # then terminate and parse stats. Fixes BEHAV-01 where count=N
+        # sent N packets instead of running for N seconds.
+        cmd = ["ping"] + flag_v6 + (["-t"] if is_win else []) + [target]
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True)  # nosec B603
+        try:
+            out, _ = proc.communicate(timeout=duration_seconds)
+        except subprocess.TimeoutExpired:
+            proc.terminate()
+            try:
+                out, _ = proc.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                out, _ = proc.communicate()
+    else:
+        # Count-based (existing behavior for quick ping tests)
+        flag_cnt = ["-n", str(count)] if is_win else ["-c", str(count)]
+        cmd = ["ping"] + flag_v6 + flag_cnt + [target]
+        code, out = run_cmd(cmd, timeout=count * 2 + 15)
+
     loss_match = re.search(r"(\d+(?:\.\d+)?)%\s*(?:loss|packet loss|lost)", out, re.IGNORECASE)
     loss_pct = float(loss_match.group(1)) if loss_match else 100.0
     if is_win:
@@ -621,7 +641,7 @@ def run_stage_5(ctrl, term_page, rep, ping_seconds=3600, skip_destructive=False)
     all_pass = True
     details = []
     for tgt in targets:
-        loss, avg_ms, cmd, out = run_ping_stats(tgt, count=ping_seconds)
+        loss, avg_ms, cmd, out = run_ping_stats(tgt, duration_seconds=ping_seconds)
         fn = f"2.5_LongPing_{tgt.replace('.', '_')}.png"
         rep.render_terminal_screenshot(term_page, " ".join(cmd) if isinstance(cmd, list) else cmd, out, fn)
         imgs_ping.append(fn)

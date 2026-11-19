@@ -28,14 +28,14 @@ This document records current known issues of `TPLINK-ATP-SCRIPT` and suggested 
 | CODE-01 | `atp_web.py` | `safe_cmd = out if False else cmd` dead code | Low | **Resolved** | Removed invalid branch |
 | CODE-02 | `atp_web.py` | Empty `finally: pass` blocks | Low | **Resolved** | Removed meaningless empty statements |
 | CODE-03 | `atp_web.py:91`, `atp_engine.py` | `shell=True` command injection surface | Low | **Resolved** | `run_cmd` defaults to `shell=False`; pass list arguments |
-| CODE-04 | `atp_web.py` | Each case calls `start_browser()` / `stop_browser()` independently | Low | **Open** | Reuse single browser instance and context across cases |
-| CODE-05 | `atp_web.py:23` | `CASES` list hardcoded in code | Low | **Open** | Support reading case list from configuration file |
+| CODE-04 | `atp_web.py` | Each case calls `start_browser()` / `stop_browser()` independently | Low | **Resolved** | Browser started once per case run, stopped in `finally` block — no more browser churn between cases |
+| CODE-05 | `atp_web.py:23` | `CASES` list hardcoded in code | Low | **Resolved** | Configurable via `ATP_CASES` env var or `cases` key in `config.json` (JSON list of `[id, title, stage]` tuples) |
 
 ## 4. Behavior Semantics (Low Priority)
 
 | ID | File | Issue | Severity | Status | Suggested Fix |
 |----|------|-------|----------|--------|---------------|
-| BEHAV-01 | `atp_engine.py`, `atp_web.py` | Ping case uses `count=ping_seconds`, sending N packets instead of running N seconds | Low | **Open** | Change to time-based loop ping, or document `count` is packet count |
+| BEHAV-01 | `atp_engine.py`, `atp_web.py` | Ping case uses `count=ping_seconds`, sending N packets instead of running N seconds | Low | **Resolved** | `run_ping_stats` supports `duration_seconds` — pings continuously for the specified duration then terminates and parses stats |
 
 ## 5. Documentation (Low Priority)
 

@@ -75,6 +75,9 @@ DEFAULT_CONFIG = {
     # final PASS screenshot of that case. Filled per router model via
     # config.json / Web UI, e.g. {"1.1": ["#login-btn", "text=Basic"]}.
     "case_highlights": {},
+    # Optional JSON list of [id, title, stage] tuples to override the
+    # hardcoded CASES list. Set via ATP_CASES env var or config.json.
+    "cases": _env("ATP_CASES", ""),
 }
 
 
