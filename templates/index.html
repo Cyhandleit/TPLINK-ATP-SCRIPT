@@ -109,9 +109,20 @@ p, span, div { font-size: 0.875rem; }
   position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:25;opacity:0;pointer-events:none;transition:opacity .25s ease;backdrop-filter:blur(2px)
 }
 .sidebar.open ~ .sidebar-overlay{opacity:1;pointer-events:auto}
-/* Desktop collapsed sidebar */
-.sidebar.collapsed{transform:translateX(-100%)}
-.app-body.sidebar-collapsed{margin-left:0}
+/* Desktop collapsed sidebar: icon-only strip (Omada / Tauc / Aginet style) */
+.sidebar.collapsed{width:64px;overflow:hidden;transform:none}
+.app-body.sidebar-collapsed{margin-left:64px}
+.sidebar.collapsed .brand-text{display:none}
+.sidebar.collapsed .sidebar-brand{justify-content:center;gap:0;padding:0 8px}
+.sidebar.collapsed .nav-label{display:none}
+.sidebar.collapsed .nav-item{justify-content:center;padding:8px 0;gap:0}
+.sidebar.collapsed .nav-item.active{border-left:none;border-bottom:3px solid var(--color-brand);padding-left:0}
+.sidebar-collapsed .cases-table.compact th:nth-child(5),
+.sidebar-collapsed .cases-table.compact td:nth-child(5),
+.sidebar-collapsed .cases-table.compact th:nth-child(6),
+.sidebar-collapsed .cases-table.compact td:nth-child(6){display:none}
+.sidebar-collapsed .cases-table.compact th:nth-child(2),
+.sidebar-collapsed .cases-table.compact td:nth-child(2){width:auto}
 .sidebar-footer code{
   color:var(--color-brand);background:#eef4fb;padding:1px 5px;border-radius:4px;
 }
@@ -666,12 +677,18 @@ function navigate(ev, el){
   if(view === 'board') renderBoard();
 }
 function toggleSidebar(){
-  const s=$('#sidebar'); s.classList.toggle('collapsed');
+  const s = $('#sidebar');
+  const collapsed = s.classList.toggle('collapsed');
   document.body.classList.toggle('sidebar-collapsed');
+  const table = $('#recent-table');
+  if (table) table.classList.toggle('compact', collapsed);
 }
 function closeSidebar(){
-  const s=$('#sidebar'); s.classList.remove('collapsed');
+  const s = $('#sidebar');
+  s.classList.remove('collapsed');
   document.body.classList.remove('sidebar-collapsed');
+  const table = $('#recent-table');
+  if (table) table.classList.remove('compact');
 }
 document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeSidebar(); });
 
