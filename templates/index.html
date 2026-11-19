@@ -1125,6 +1125,7 @@ table.clients button[disabled] {
             <button class="btn ghost small" onclick="runStage(event,'3')">Stage 3</button>
             <button class="btn ghost small" onclick="runStage(event,'4')">Stage 4</button>
             <button class="btn ghost small" onclick="runStage(event,'5')">Stage 5</button>
+            <button class="btn destructive small" id="btn-stop" onclick="stopRun()" disabled>Stop</button>
           </div>
         </div>
       </section>
@@ -1444,20 +1445,28 @@ async function load(forceConfig=false){
     if(activeView === 'reports') renderReports();
     updateRunningBadge();
     updateTopologyClients();
+    // Run state from the server is authoritative (exec_lock held = running)
+    const serverRunning = !!d.running;
+    if (serverRunning) {
+      busy = true;
+    } else if (busy) {
+      busy = false;
+      $$('button').forEach(btn => {
+        btn.disabled = false;
+        btn.classList.remove('btn-loading');
+        if (btn.dataset.originalText) btn.textContent = btn.dataset.originalText;
+        delete btn.dataset.originalText;
+      });
+    }
+    const stopBtn = $('#btn-stop');
+    if (stopBtn) {
+      stopBtn.disabled = !serverRunning || !!d.stopping;
+      stopBtn.textContent = (serverRunning && d.stopping) ? 'Stopping…' : 'Stop';
+    }
   }catch(e){
     console.error('load failed',e);
     lastLoadError = e;
     showLoadError(e);
-  }
-  // Auto-restore buttons when nothing running
-  if (busy && Object.values(cases||{}).every(c => (c.status||'PENDING').toUpperCase() !== 'RUNNING')) {
-    busy = false;
-    $$('button').forEach(btn => {
-      btn.disabled = false;
-      btn.classList.remove('btn-loading');
-      if (btn.dataset.originalText) btn.textContent = btn.dataset.originalText;
-      delete btn.dataset.originalText;
-    });
   }
 }
 
@@ -1895,6 +1904,16 @@ function renderReports(){
 }
 
 /* ---------- Actions ---------- */
+async function stopRun(){
+  const btn=$('#btn-stop');
+  if(btn){ btn.disabled=true; btn.textContent='Stopping…'; }
+  try{
+    const r=await fetch('/api/stop',{method:'POST'});
+    const d=await r.json();
+    toast(d.ok?'Stop requested — current case finishes, remaining cases cancelled':(d.error||'Stop failed'), d.ok?'info':'error');
+  }catch(e){ toast('Stop failed: '+e.message,'error'); if(btn){btn.disabled=false; btn.textContent='Stop';} }
+}
+
 async function runStage(event, stage){
   if(busy){toast('Test in progress, please wait', 'info'); return;}
   $$(".btn.primary").forEach(btn=>{

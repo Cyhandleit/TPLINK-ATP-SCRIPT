@@ -63,6 +63,7 @@ state = {cid: {"status": "PENDING", "detail": "", "screenshots": [], "logs": "",
                "start": None, "end": None} for cid, _, _ in CASES}
 state_lock = threading.Lock()
 exec_lock = threading.Lock()
+cancel_event = threading.Event()  # set by /api/stop; checked between cases
 
 app = Flask(__name__)
 
@@ -788,6 +789,9 @@ def run_case_async(case_id):
 def run_stage_async(stage):
     ids = [cid for cid, _, s in CASES if s == stage]
     for cid in ids:
+        if cancel_event.is_set():
+            print(f"[api/stop] Run cancelled; remaining cases skipped")
+            break
         run_case_async(cid)
 
 
@@ -851,7 +855,8 @@ def api_state():
     total = len(CASES)
     percent = round(done / total * 100) if total else 0
     return jsonify({"cases": cases, "config": sanitize_config(CONFIG),
-                    "progress": {"done": done, "total": total, "percent": percent}})
+                    "progress": {"done": done, "total": total, "percent": percent},
+                    "running": exec_lock.locked(), "stopping": cancel_event.is_set()})
 
 
 @app.route("/api/config", methods=["GET", "POST"])
@@ -894,6 +899,7 @@ def api_run():
 
     def job():
         try:
+            cancel_event.clear()
             # Config overrides passed from frontend are persisted to config.json and applied to the current runtime;
             # after execution they are not restored, and subsequent starts/tests use the persisted config directly.
             CONFIG.update(overrides)
@@ -906,6 +912,9 @@ def api_run():
                     run_case_async(case)
                 elif stage == "all":
                     for cid, _, _ in CASES:
+                        if cancel_event.is_set():
+                            print("[api/stop] Run cancelled; remaining cases skipped")
+                            break
                         run_case_async(cid)
                 else:
                     run_stage_async(stage)
@@ -915,6 +924,17 @@ def api_run():
             exec_lock.release()
 
     threading.Thread(target=job, daemon=True).start()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/stop", methods=["POST"])
+def api_stop():
+    """Cancel a run: remaining queued cases are skipped; the case currently
+    executing finishes (Playwright/subprocess work cannot be safely interrupted
+    mid-step from another thread)."""
+    if not exec_lock.locked():
+        return jsonify({"ok": False, "error": "No test is running"}), 409
+    cancel_event.set()
     return jsonify({"ok": True})
 
 
