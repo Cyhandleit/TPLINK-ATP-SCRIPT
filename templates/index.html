@@ -1154,6 +1154,11 @@ table.clients button[disabled] {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px;color:var(--brand)"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
       <div class="card-title">Configuration</div>
     </header>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:var(--space-2)">
+        <button class="btn ghost small" onclick="exportConfig()" title="Export configuration to JSON">&#x2B0B; Export</button>
+        <button class="btn ghost small" onclick="document.getElementById('cfg-import-file').click()" title="Import configuration from JSON">&#x2B06; Import</button>
+        <input type="file" id="cfg-import-file" accept=".json" style="display:none" onchange="importConfig(this)">
+      </div>
     <div class="card-body" id="config-body" style="padding:var(--space-6)">
       <div style="display:grid;gap:var(--space-6)">
         <div id="cfg-gateway"></div>
@@ -1654,7 +1659,7 @@ function renderClientTable(){
       <td><span class="badge ${cls}">${statusMap(status)}</span></td>
       <td><span class="num">—</span></td>
       <td><span class="num">—</span></td>
-      <td class="actions">${action}${imgs?' <button class="btn icon small" onclick="openGallery(\\''+esc(cid)+'\\', ['+(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')+'])">🖼</button>':''}</td>
+      <td class="actions">${action}${imgs?' <button class="btn icon small" onclick="openGallery(${c.logs?' <button class="btn icon small" onclick="showLog(\'\''+esc(cid)+'\\')">📄</button>':''}\\''+esc(cid)+'\\', ['+(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')+'])">🖼</button>':''}</td>
     </tr>`;
   }
 }
@@ -1790,7 +1795,7 @@ function renderBoard(){
       <td><span class="badge ${cls}">${statusMap(status)}</span></td>
       <td><span class="num">—</span></td>
       <td><span class="num">—</span></td>
-      <td class="actions">${action}${imgs?' <button class="btn icon small" onclick="openGallery(\\''+esc(cid)+'\\', ['+(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')+'])">🖼</button>':''}</td>
+      <td class="actions">${action}${imgs?' <button class="btn icon small" onclick="openGallery(${c.logs?' <button class="btn icon small" onclick="showLog(\'\''+esc(cid)+'\\')">📄</button>':''}\\''+esc(cid)+'\\', ['+(c.screenshots||[]).map(s=>JSON.stringify(s)).join(',')+'])">🖼</button>':''}</td>
     </tr>`;
   }
 }
@@ -1827,6 +1832,7 @@ function renderReports(){
         <div><div style="font-weight:700;color:var(--text-primary)">${esc(r.name)}</div><div style="font-size:0.75rem;color:var(--text-muted)">${esc(r.path||'')}</div></div>
         <div style="font-size:0.75rem;color:var(--text-muted)">${r.file_count||0} files ${more}</div>
       </div>
+      <div style="margin-top:var(--space-3)">${r.summary?'<a href="#" onclick="window.open(' + "+esc(r.summary) + "', '_blank')">Open HTML Report</a>':'<span style="color:var(--text-muted);font-size:0.7rem">No HTML report</span>'}</div>
       <div style="display:flex;gap:var(--space-3);flex-wrap:wrap">${thumbs}</div>
     </div>`;
   }).join('');
@@ -1925,6 +1931,47 @@ async function saveConfig(){
 
 async function refresh(){load(); toast('Refreshed', 'info');}
 function poll(){setTimeout(load,2000);}
+
+/* ---------- Case execution logs ---------- */
+function showLog(cid){
+  const c=(cases||{})[cid]||{};
+  const meta=CASE_META[cid]||{title:cid};
+  const logs=c.logs||'';
+  const body=logs.trim()?`<pre style="white-space:pre-wrap;background:#0b131e;color:#d4d4d4;padding:var(--space-4);border-radius:var(--radius-md);font-family:var(--font-mono);font-size:0.75rem;max-height:70vh;overflow:auto">${esc(logs)}</pre>`:`<div style="padding:var(--space-5);text-align:center;color:var(--text-muted)">No logs for this case yet.</div>`;
+  openLightboxInline(`<div style="padding:var(--space-4)"><div style="font-weight:600;margin-bottom:var(--space-3)">${esc(cid)} · ${esc(meta.title)} · Execution Log</div>${body}<div style="margin-top:var(--space-3)"><button class="btn ghost small" onclick="closeLightbox()">Close</button></div></div>`, `${cid} Execution Log`);
+}
+
+/* ---------- Config import / export (reuses existing /api/config) ---------- */
+function exportConfig(){
+  const blob=new Blob([JSON.stringify(cfg||{},null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`atp-config-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Config exported. Passwords are masked — re-fill them before importing.', 'info');
+}
+function importConfig(input){
+  const file=input.files&&input.files[0];
+  if(!file) return;
+  const fr=new FileReader();
+  fr.onload=function(){
+    try{
+      const data=JSON.parse(fr.result);
+      if(!data||typeof data!=='object') throw new Error('Invalid config JSON');
+      fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+        .then(r=>r.json())
+        .then(d=>{
+          input.value='';
+          if(d.ok){toast('Config imported — re-fill any masked passwords, then Save.', 'success'); load();}
+          else toast(d.error||'Import failed', 'error');
+        })
+        .catch(e=>toast('Import failed: '+e.message,'error'));
+    }catch(e){toast('Invalid JSON: '+e.message,'error'); input.value='';}
+  };
+  fr.readAsText(file);
+}
+
 
 /* ---------- Password toggle ---------- */
 function togglePwd(btn,key){

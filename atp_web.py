@@ -12,7 +12,7 @@ from socketserver import TCPServer
 from flask import Flask, request, jsonify, send_from_directory
 import requests
 
-from atp_config import load_config, save_config, sanitize_config, validate_config
+from atp_config import load_config, save_config, sanitize_config, validate_config, load_api_key, validate_api_key, unauthorized_payload
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 REPORT_ROOT = os.path.join(BASE, "reports")
@@ -54,6 +54,24 @@ state_lock = threading.Lock()
 exec_lock = threading.Lock()
 
 app = Flask(__name__)
+
+# ---------------- API Key auth (optional) ----------------
+# When ATP_API_KEY is not set, every request passes through unchanged (zero impact on current UI).
+# When set, callers must send `X-API-Key` (or `X-Hermes-API-Key`) on /api/* routes.
+def _api_key_required():
+    expected = load_api_key()
+    if not expected:
+        return None
+    key = request.headers.get('X-API-Key') or request.headers.get('X-Hermes-API-Key')
+    if not validate_api_key(key):
+        return jsonify(unauthorized_payload()), 401
+
+@app.before_request
+def _api_key_gate():
+    if request.path.startswith('/api/'):
+        res = _api_key_required()
+        if res:
+            return res
 
 # ---------------- Utilities ----------------
 
