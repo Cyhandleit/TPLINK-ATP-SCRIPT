@@ -297,12 +297,32 @@ def connect_wifi(ssid, password):
         return code == 0, out
 
 
-def run_ping_stats(target, count=10, ipv6=False):
+def run_ping_stats(target, count=10, duration_seconds=None, ipv6=False):
     is_win = platform.system() == "Windows"
     flag_v6 = ["-6"] if ipv6 else ["-4"]
-    flag_cnt = ["-n", str(count)] if is_win else ["-c", str(count)]
-    cmd = ["ping"] + flag_v6 + flag_cnt + [target]
-    code, out = run_cmd(cmd, timeout=count * 2 + 15)
+
+    if duration_seconds is not None:
+        # Time-based: ping continuously for duration_seconds seconds,
+        # then terminate and parse stats. Fixes BEHAV-01 where count=N
+        # sent N packets instead of running for N seconds.
+        cmd = ["ping"] + flag_v6 + (["-t"] if is_win else []) + [target]
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True)  # nosec B603
+        try:
+            out, _ = proc.communicate(timeout=duration_seconds)
+        except subprocess.TimeoutExpired:
+            proc.terminate()
+            try:
+                out, _ = proc.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                out, _ = proc.communicate()
+    else:
+        # Count-based (existing behavior for quick ping tests)
+        flag_cnt = ["-n", str(count)] if is_win else ["-c", str(count)]
+        cmd = ["ping"] + flag_v6 + flag_cnt + [target]
+        code, out = run_cmd(cmd, timeout=count * 2 + 15)
+
     loss_match = re.search(r"(\d+(?:\.\d+)?)%\s*(?:loss|packet loss|lost)", out, re.IGNORECASE)
     loss_pct = float(loss_match.group(1)) if loss_match else 100.0
     if is_win:
@@ -443,9 +463,8 @@ def run_stage_2(term_page, rep):
     for cid, title, cfg, img_fn in bands:
         ok, conn_out = connect_wifi(cfg["ssid"], cfg["pass"])
         if not ok:
-            rep.record(
-                cid, title, "SKIP", f"Unable to connect SSID: {
-                    cfg['ssid']} (ignore if device does not support this band)")
+            detail = f"Unable to connect SSID: {cfg['ssid']} (ignore if device does not support this band)"
+            rep.record(cid, title, "SKIP", detail)
             continue
         c_s, o_s = run_cmd("speedtest-cli --simple", timeout=60)
         rep.render_terminal_screenshot(term_page, f"[{cfg['ssid']}] speedtest-cli --simple", o_s, img_fn)
@@ -482,12 +501,11 @@ def run_stage_2(term_page, rep):
             if time.time() - t0 > 20:
                 break
         mbps = (downloaded * 8) / ((time.time() - t0) * 1_000_000)
+        downloaded_mb = downloaded / (1024 * 1024)
+        elapsed_s = time.time() - t0
         rep.render_terminal_screenshot(
             term_page, f"GET {url_500m}",
-            f"Downloaded: {downloaded /
-                           (1024 *
-                            1024):.2f} MB in {time.time() -
-                                              t0:.1f}s\nAvg Throughput: {mbps:.2f} Mbps",
+            f"Downloaded: {downloaded_mb:.2f} MB in {elapsed_s:.1f}s\nAvg Throughput: {mbps:.2f} Mbps",
             "3.7_P2P_Heavy_Download.png"
         )
         rep.record("3.7", "P2P / Heavy Download (testfile.org)", "PASS" if downloaded > 0 else "FAIL",
@@ -613,15 +631,14 @@ def run_stage_5(ctrl, term_page, rep, ping_seconds=3600, skip_destructive=False)
                 "6.1",
                 "Firmware Upgrade via UI",
                 "SKIP",
-                f"Firmware file not found: {
-                    CONFIG['firmware_bin_path']}")
+                f"Firmware file not found: {CONFIG['firmware_bin_path']}")
     targets = [CONFIG["gateway_ip"], "8.8.8.8", "1.1.1.1"]
     print(f">>> Starting long-term Ping monitoring ({ping_seconds} seconds) -> targets: {targets}")
     imgs_ping = []
     all_pass = True
     details = []
     for tgt in targets:
-        loss, avg_ms, cmd, out = run_ping_stats(tgt, count=ping_seconds)
+        loss, avg_ms, cmd, out = run_ping_stats(tgt, duration_seconds=ping_seconds)
         fn = f"2.5_LongPing_{tgt.replace('.', '_')}.png"
         rep.render_terminal_screenshot(term_page, " ".join(cmd) if isinstance(cmd, list) else cmd, out, fn)
         imgs_ping.append(fn)

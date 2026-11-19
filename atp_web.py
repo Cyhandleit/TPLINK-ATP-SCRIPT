@@ -12,7 +12,10 @@ from socketserver import TCPServer
 from flask import Flask, request, jsonify, send_from_directory
 import requests
 
-from atp_config import load_config, save_config, sanitize_config, validate_config, load_api_key, validate_api_key, unauthorized_payload, SENSITIVE_KEYS
+from atp_config import (
+    load_config, save_config, sanitize_config, validate_config,
+    load_api_key, validate_api_key, unauthorized_payload, SENSITIVE_KEYS
+)
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 REPORT_ROOT = os.path.join(BASE, "reports")
@@ -59,6 +62,19 @@ CASES = [
     ("2.5/7.2", "Long-Duration Ping Stability", "5"),
 ]
 
+# Allow CASES to be overridden via config.json / env var ATP_CASES.
+# Expects a JSON list of [id, title, stage] tuples.
+_case_json = CONFIG.get("cases") or ""
+if _case_json:
+    try:
+        import json as _json
+        _parsed = _json.loads(_case_json)
+        if isinstance(_parsed, list):
+            CASES = [tuple(c) for c in _parsed
+                     if isinstance(c, (list, tuple)) and len(c) == 3]
+    except Exception:  # nosec B110
+        pass  # keep hardcoded defaults on parse error
+
 state = {cid: {"status": "PENDING", "detail": "", "screenshots": [], "logs": "",
                "start": None, "end": None} for cid, _, _ in CASES}
 state_lock = threading.Lock()
@@ -70,6 +86,8 @@ app = Flask(__name__)
 # ---------------- API Key auth (optional) ----------------
 # When ATP_API_KEY is not set, every request passes through unchanged (zero impact on current UI).
 # When set, callers must send `X-API-Key` (or `X-Hermes-API-Key`) on /api/* routes.
+
+
 def _api_key_required():
     expected = load_api_key()
     if not expected:
@@ -77,6 +95,7 @@ def _api_key_required():
     key = request.headers.get('X-API-Key') or request.headers.get('X-Hermes-API-Key')
     if not validate_api_key(key):
         return jsonify(unauthorized_payload()), 401
+
 
 @app.before_request
 def _api_key_gate():
@@ -200,9 +219,9 @@ class ATPWebEngine:
             logs.append(msg)
             print(msg)
 
+        self.start_browser()
         try:
             if case_id == "1.1":
-                self.start_browser()
                 self.login("admin")
                 img_a = self._snap("1.1_Admin_Login.png")
                 self.login("superadmin")
@@ -218,7 +237,7 @@ class ATPWebEngine:
                 return ("PASS" if ok else "FAIL", f"Prefix match={ok}", [img_a, img_b, img_c], "\n".join(logs))
 
             if case_id == "2.1":
-                self.start_browser()
+
                 self.login("superadmin")
                 self.router_page.click("text=Advanced")
                 self.router_page.click("text=Network")
@@ -233,7 +252,7 @@ class ATPWebEngine:
                 return ("PASS" if ok else "FAIL", "PPPoE and IPv6 status page verified", [img1, img2], "\n".join(logs))
 
             if case_id == "2.3":
-                self.start_browser()
+
                 all_ok = True
                 imgs = []
                 for i, tgt in enumerate([CONFIG["gateway_ip"], "8.8.8.8", "www.google.com"], 1):
@@ -248,7 +267,7 @@ class ATPWebEngine:
                         "\n".join(logs))
 
             if case_id == "2.4":
-                self.start_browser()
+
                 self.login("superadmin")
                 self.router_page.click("text=Advanced")
                 self.router_page.click("text=System Tools")
@@ -258,7 +277,7 @@ class ATPWebEngine:
                 return ("PASS", "Entered system diagnostics tool interface", [img], "\n".join(logs))
 
             if case_id == "2.2":
-                self.start_browser()
+
                 self.login("superadmin")
                 self.router_page.click("text=Advanced")
                 self.router_page.click("text=Network")
@@ -274,11 +293,12 @@ class ATPWebEngine:
                 img3 = self._snap("2.2_WAN_Reconnected.png")
                 pub_ip = self._get_public_ip()
                 loss_8888, _, _, _ = run_ping_stats("8.8.8.8", count=4)
-                ok = bool(pub_ip and pub_ip != "0.0.0.0") and loss_8888 == 0.0
-                return ("PASS" if ok else "FAIL", f"WAN reconnected, public IP={pub_ip}, ping 8.8.8.8 loss={loss_8888}%", [img1, img2, img3], "\n".join(logs))
+                ok = bool(pub_ip and pub_ip != "0.0.0.0") and loss_8888 == 0.0  # nosec B104
+                detail = f"WAN reconnected, public IP={pub_ip}, ping 8.8.8.8 loss={loss_8888}%"
+                return ("PASS" if ok else "FAIL", detail, [img1, img2, img3], "\n".join(logs))
 
             if case_id == "2.6":
-                self.start_browser()
+
                 self.login("superadmin")
                 self.router_page.click("text=Advanced")
                 self.router_page.click("text=Network")
@@ -288,10 +308,11 @@ class ATPWebEngine:
                 self.router_page.click("text=Status")
                 self.router_page.wait_for_load_state("networkidle")
                 img2 = self._snap("2.6_WAN_Status_Before.png")
-                return ("PASS", "Captured WAN status for manual GPON/eWAN failover verification (physical cable pull required)", [img1, img2], "\n".join(logs))
+                detail = "Captured WAN status for manual GPON/eWAN failover verification (physical cable pull required)"
+                return ("PASS", detail, [img1, img2], "\n".join(logs))
 
             if case_id == "4.8":
-                self.start_browser()
+
                 loss6, avg6, cmd6, out6 = run_ping_stats("www.google.com", count=4, ipv6=True)
                 self._term_snap(cmd6, out6, "4.8_Ping6_Google.png")
                 self.term_page.goto("https://test-ipv6.com/", timeout=30000)
@@ -304,7 +325,7 @@ class ATPWebEngine:
                         ["4.8_Ping6_Google.png", "4.8_Test_IPv6_Score.png"], "\n".join(logs))
 
             if case_id == "4.2":
-                self.start_browser()
+
                 self.login("superadmin")
                 self.router_page.click("text=Advanced")
                 self.router_page.click("text=VPN Server")
@@ -316,10 +337,12 @@ class ATPWebEngine:
                 self.router_page.click("text=L2TP")
                 self.router_page.wait_for_load_state("networkidle")
                 img3 = self._snap("4.2_VPN_Server_L2TP.png")
-                return ("PASS", "Captured PPTP, OpenVPN, and L2TP configuration pages (external connectivity test requires remote client)", [img1, img2, img3], "\n".join(logs))
+                detail = ("Captured PPTP, OpenVPN, and L2TP configuration pages "
+                          "(external connectivity test requires remote client)")
+                return ("PASS", detail, [img1, img2, img3], "\n".join(logs))
 
             if case_id == "4.6":
-                self.start_browser()
+
                 self.login("superadmin")
                 self.router_page.click("text=Advanced")
                 self.router_page.click("text=Security")
@@ -329,10 +352,11 @@ class ATPWebEngine:
                 self.router_page.click("button:has-text('Add'), button:has-text('Add New')")
                 self.router_page.wait_for_timeout(1000)
                 img2 = self._snap("4.6_MAC_Filtering_Add.png")
-                return ("PASS", "MAC Filtering deny list page captured (add test device and verify no internet manually)", [img1, img2], "\n".join(logs))
+                detail = "MAC Filtering deny list page captured (add test device and verify no internet manually)"
+                return ("PASS", detail, [img1, img2], "\n".join(logs))
 
             if case_id == "4.9":
-                self.start_browser()
+
                 self.login("superadmin")
                 self.router_page.click("text=Advanced")
                 self.router_page.click("text=Wireless")
@@ -342,30 +366,34 @@ class ATPWebEngine:
                 self.router_page.click("button:has-text('Enable'), button:has-text('On')")
                 self.router_page.wait_for_timeout(2000)
                 img2 = self._snap("4.9_Wireless_Schedule_Enabled.png")
-                return ("PASS", "Wireless Schedule configuration captured (verify SSID broadcast stops at scheduled time manually)", [img1, img2], "\n".join(logs))
+                detail = ("Wireless Schedule configuration captured "
+                          "(verify SSID broadcast stops at scheduled time manually)")
+                return ("PASS", detail, [img1, img2], "\n".join(logs))
 
             if case_id == "4.11":
-                self.start_browser()
+
                 self.login("superadmin")
                 self.router_page.click("text=Advanced")
                 self.router_page.click("text=Network")
                 self.router_page.click("text=LAN")
                 self.router_page.wait_for_load_state("networkidle")
                 img1 = self._snap("4.11_LAN_Config.png")
-                return ("PASS", "LAN port static IP configuration page captured (verify server reachability manually)", [img1], "\n".join(logs))
+                detail = "LAN port static IP configuration page captured (verify server reachability manually)"
+                return ("PASS", detail, [img1], "\n".join(logs))
 
             if case_id == "4.12":
-                self.start_browser()
+
                 self.login("superadmin")
                 self.router_page.click("text=Advanced")
                 self.router_page.click("text=System Tools")
                 self.router_page.click("text=Schedule Reboot")
                 self.router_page.wait_for_load_state("networkidle")
                 img1 = self._snap("4.12_Schedule_Reboot_Config.png")
-                return ("PASS", "Schedule Reboot configuration page captured (verify actual reboot at scheduled time manually)", [img1], "\n".join(logs))
+                detail = "Schedule Reboot configuration page captured (verify actual reboot at scheduled time manually)"
+                return ("PASS", detail, [img1], "\n".join(logs))
 
             if case_id == "4.13":
-                self.start_browser()
+
                 self.login("superadmin")
                 self.router_page.click("text=Advanced")
                 self.router_page.click("text=Wireless")
@@ -375,10 +403,11 @@ class ATPWebEngine:
                 self.router_page.click("text=Wireless Statistics")
                 self.router_page.wait_for_load_state("networkidle")
                 img2 = self._snap("4.13_Wireless_Statistics_RSSI.png")
-                return ("PASS", "Wireless settings and RSSI statistics captured (use NetSpot for full stability analysis)", [img1, img2], "\n".join(logs))
+                detail = "Wireless settings and RSSI statistics captured (use NetSpot for full stability analysis)"
+                return ("PASS", detail, [img1, img2], "\n".join(logs))
 
             if case_id == "4.16":
-                self.start_browser()
+
                 self.login("superadmin")
                 self.router_page.click("text=Advanced")
                 self.router_page.click("text=Wireless")
@@ -390,7 +419,8 @@ class ATPWebEngine:
                 img2 = self._snap("4.16_Band_Steering_After.png")
                 body = self.router_page.inner_text("body")
                 ok = "Band Steering" in body or "Smart Connect" in body
-                return ("PASS" if ok else "FAIL", f"Band Steering/Smart Connect page captured, UI indicates enabled={ok}", [img1, img2], "\n".join(logs))
+                detail = f"Band Steering/Smart Connect page captured, UI indicates enabled={ok}"
+                return ("PASS" if ok else "FAIL", detail, [img1, img2], "\n".join(logs))
 
             if case_id == "3.1":
                 code, out = run_cmd("speedtest-cli --simple", timeout=60)
@@ -413,14 +443,14 @@ class ATPWebEngine:
                         f"{case_id.replace('/', '_')}_WiFi_Speed.png"], "\n".join(logs))
 
             if case_id == "3.5":
-                self.start_browser()
+
                 self.term_page.goto("https://whatismyipaddress.com/", wait_until="domcontentloaded", timeout=25000)
                 self.term_page.wait_for_load_state("networkidle")
                 img = self._snap("3.5_Web_Browsing.png", page=self.term_page)
                 return ("PASS", "Successfully loaded whatismyipaddress.com", [img], "\n".join(logs))
 
             if case_id == "3.6":
-                self.start_browser()
+
                 self.term_page.goto("https://www.youtube.com/watch?v=LXb3EKWsInQ", timeout=30000)
                 self.term_page.wait_for_load_state("networkidle")
                 q = self.term_page.evaluate("""() => {
@@ -434,7 +464,7 @@ class ATPWebEngine:
                 return ("PASS", q, [img], "\n".join(logs))
 
             if case_id == "3.7":
-                self.start_browser()
+
                 t0 = time.time()
                 url = "https://link.testfile.org/500MB"
                 req = requests.get(url, stream=True, timeout=30)
@@ -455,7 +485,7 @@ class ATPWebEngine:
                         ["3.7_P2P_Heavy_Download.png"], "\n".join(logs))
 
             if case_id == "4.1":
-                self.start_browser()
+
                 port = CONFIG.get("http_forward_port", 30000)
                 os.makedirs("temp_www", exist_ok=True)
                 with open("temp_www/index.html", "w", encoding="utf-8") as f:
@@ -496,7 +526,7 @@ class ATPWebEngine:
                     srv.server_close()
 
             if case_id in ("4.3", "4.4", "4.5", "4.7", "4.15"):
-                self.start_browser()
+
                 self.login("superadmin")
                 self.router_page.click("text=Advanced")
                 sel_map = {"4.3": "text=Parental Controls", "4.4": "text=QoS",
@@ -587,7 +617,7 @@ class ATPWebEngine:
                     return ("SKIP",
                             "Destructive test case skipped (enable --run-destructive to execute)",
                             [], "\n".join(logs))
-                self.start_browser()
+
                 self.login("superadmin")
                 self.router_page.click("#top-reboot, button:has-text('Reboot')")
                 self.router_page.wait_for_timeout(1000)
@@ -608,7 +638,7 @@ class ATPWebEngine:
                             [], "\n".join(logs))
                 if not os.path.exists(CONFIG["firmware_bin_path"]):
                     return ("SKIP", f"Firmware file not found: {CONFIG['firmware_bin_path']}", [], "\n".join(logs))
-                self.start_browser()
+
                 self.login("superadmin")
                 self.router_page.click("text=Advanced")
                 self.router_page.click("text=System Tools")
@@ -630,9 +660,9 @@ class ATPWebEngine:
                 imgs = []
                 details = []
                 all_pass = True
-                self.start_browser()
+
                 for tgt in targets:
-                    loss, avg, cmd, out = run_ping_stats(tgt, count=secs)
+                    loss, avg, cmd, out = run_ping_stats(tgt, duration_seconds=secs)
                     fn = f"2.5_LongPing_{tgt.replace('.', '_')}.png"
                     self._term_snap(f"{cmd} (Duration: {secs}s)", out, fn)
                     imgs.append(fn)
@@ -646,7 +676,7 @@ class ATPWebEngine:
         except Exception as e:
             return ("FAIL", str(e), [], "\n".join(logs))
         finally:
-            pass
+            self.stop_browser()
 
     # ---- Internal helpers ----
     def _snap(self, name, page=None):
@@ -662,9 +692,8 @@ class ATPWebEngine:
         d = os.path.join(REPORT_ROOT, datetime.now().strftime("%Y%m%d_%H%M%S"))
         os.makedirs(d, exist_ok=True)
         path = os.path.join(d, name)
-        safe_cmd = out if False else cmd
         html_c = f"""<html><body style="background:#1e1e1e;color:#d4d4d4;font-family:Consolas,monospace;padding:20px;">
-        <div style="color:#569cd6;margin-bottom:8px;">$ {safe_cmd}</div>
+        <div style="color:#569cd6;margin-bottom:8px;">$ {cmd}</div>
         <pre style="white-space:pre-wrap;">{out[-4000:]}</pre></body></html>"""
         self.term_page.set_content(html_c)
         self._last_snap_page = self.term_page
@@ -790,7 +819,7 @@ def run_stage_async(stage):
     ids = [cid for cid, _, s in CASES if s == stage]
     for cid in ids:
         if cancel_event.is_set():
-            print(f"[api/stop] Run cancelled; remaining cases skipped")
+            print("[api/stop] Run cancelled; remaining cases skipped")
             break
         run_case_async(cid)
 
@@ -907,7 +936,6 @@ def api_run():
                 save_config(CONFIG)
             except Exception as e:  # Persistence failure does not block this run, only takes effect in memory
                 print(f"[api/run] Failed to save config.json: {e}")
-            try:
                 if case:
                     run_case_async(case)
                 elif stage == "all":
@@ -918,8 +946,6 @@ def api_run():
                         run_case_async(cid)
                 else:
                     run_stage_async(stage)
-            finally:
-                pass  # Config persisted, retained for subsequent tests
         finally:
             exec_lock.release()
 

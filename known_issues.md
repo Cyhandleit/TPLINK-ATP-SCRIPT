@@ -1,46 +1,49 @@
 # Known Issues & Planned Changes
 
-This document records current known issues of `TPLINK-ATP-SCRIPT` and suggested changes, for subsequent iteration reference.
+This document records current known issues of `TPLINK-ATP-SCRIPT` and suggested changes, for subsequent iteration resolution.
+
+`TPLINK-ATP-SCRIPT`
 
 ## 1. Security (High Priority)
 
-| ID | File | Issue | Severity | Suggested Fix |
-|----|------|-------|----------|---------------|
-| SEC-01 | `atp_engine.py:39-43` | Router administrator / super administrator password hardcoded in `CONFIG`, default values `admin1234` / `superadmin1234` | High | Remove hardcoded default values, read only from environment variables `ATP_ADMIN_PASS` / `ATP_SUPERADMIN_PASS`; provide `.env.example` template in repo |
-| SEC-02 | `atp_web.py:17-20` | Web UI `DEFAULT_CONFIG` similarly hardcodes plaintext passwords | High | Same as above, change to read from environment variables or `config.json` |
-| SEC-03 | `atp_web.py:675` | Flask starts with `debug=True`, listening on `0.0.0.0`, exposing interactive debugger and possibly leading to remote code execution | High | Production change to `debug=False`; recommend deploying via Gunicorn / uWSGI, binding only `127.0.0.1` or restricted interface |
+| ID | File | Issue | Severity | Status | Suggested Fix |
+|----|------|-------|----------|--------|---------------|
+| SEC-01 | `atp_engine.py:57-63` | Router administrator / super administrator password hardcoded in `CONFIG` | High | **Resolved** | Passwords now read from `ATP_ADMIN_PASS` / `ATP_SUPERADMIN_PASS` env vars with empty defaults; no hardcoded `admin1234` / `superadmin1234` remain |
+| SEC-02 | `atp_web.py:20` | Web UI `CONFIG` reads from `load_config()` / `config.json` instead of hardcoded `DEFAULT_CONFIG` | High | **Resolved** | Configuration sourced from env vars and `config.json`; no plaintext passwords in code |
+| SEC-03 | `atp_web.py:985` | Flask `debug=True` exposing interactive debugger on `0.0.0.0` | High | **Resolved** | `debug=os.environ.get("ATP_DEBUG", "0") == "1"` — defaults to `False`; Dockerfile forces `debug=False` |
 
 ## 2. CI / Build (Medium Priority)
 
-| ID | File | Issue | Severity | Suggested Fix |
-|----|------|-------|----------|---------------|
-| CI-01 | `.github/workflows/ci.yml:32` | `flake8 ... || true` swallows non-zero exit code, lint failure does not block CI | Medium | Remove `|| true`, let check failure truly block build |
-| CI-02 | `.github/workflows/ci.yml:36` | `bandit ... || true` same as above | Medium | Remove `|| true` |
-| CI-03 | `.github/workflows/ci.yml` | Missing Playwright browser installation step, running scripts in CI will fail due to missing browser | Medium | Add `playwright install` step |
-| CI-04 | Repository root | Missing `requirements.txt`, dependency versions not locked | Medium | Add `requirements.txt` to pin Python dependency versions |
+| ID | File | Issue | Severity | Status | Suggested Fix |
+|----|------|-------|----------|--------|---------------|
+| CI-01 | `.github/workflows/ci.yml:33` | `flake8` failure does not block CI | Medium | **Resolved** | Removed `|| true` / `|| echo` swallowers; lint failures now block build |
+| CI-02 | `.github/workflows/ci.yml:37` | `bandit` failure does not block CI | Medium | **Resolved** | Removed `|| true`; security scan failures now block build |
+| CI-03 | `.github/workflows/ci.yml:26-29` | Missing Playwright browser installation step | Medium | **Resolved** | Added `playwright install chromium` + `playwright install-deps chromium` |
+| CI-04 | Repository root | Missing `requirements.txt` | Medium | **Resolved** | `requirements.txt` exists; CI installs from it |
 
 ## 3. Code Quality (Low Priority)
 
-| ID | File | Issue | Severity | Suggested Fix |
-|----|------|-------|----------|---------------|
-| CODE-01 | `atp_web.py:472` | `safe_cmd = out if False else cmd` is dead code, `out` branch unreachable | Low | Remove invalid branch |
-| CODE-02 | `atp_web.py:456-457` | `finally: pass` is meaningless empty statement | Low | Delete or supplement real cleanup logic |
-| CODE-03 | `atp_engine.py:207-210`, `atp_web.py:90-95` | Uses `shell=True` to execute commands, potential command injection surface | Low | Try to change to `shell=False` and pass list arguments |
-| CODE-04 | `atp_web.py` per case | Each case independently calls `start_browser()` / `stop_browser()`, Chromium startup overhead large | Low | Reuse single browser instance and context |
-| CODE-05 | `atp_web.py:54` | `CASES` case list hardcoded in code, cannot add/remove via configuration file | Low | Support reading case list from configuration file |
+| ID | File | Issue | Severity | Status | Suggested Fix |
+|----|------|-------|----------|--------|---------------|
+| CODE-01 | `atp_web.py` | `safe_cmd = out if False else cmd` dead code | Low | **Resolved** | Removed invalid branch |
+| CODE-02 | `atp_web.py` | Empty `finally: pass` blocks | Low | **Resolved** | Removed meaningless empty statements |
+| CODE-03 | `atp_web.py:91`, `atp_engine.py` | `shell=True` command injection surface | Low | **Resolved** | `run_cmd` defaults to `shell=False`; pass list arguments |
+| CODE-04 | `atp_web.py` | Each case calls `start_browser()` / `stop_browser()` independently | Low | **Resolved** | Browser started once per case run, stopped in `finally` block — no more browser churn between cases |
+| CODE-05 | `atp_web.py:23` | `CASES` list hardcoded in code | Low | **Resolved** | Configurable via `ATP_CASES` env var or `cases` key in `config.json` (JSON list of `[id, title, stage]` tuples) |
 
 ## 4. Behavior Semantics (Low Priority)
 
-| ID | File | Issue | Severity | Suggested Fix |
-|----|------|-------|----------|---------------|
-| BEHAV-01 | `atp_engine.py:544`, `atp_web.py:443` | Long-stable Ping case uses `count=ping_seconds`, actually sends 3600 ICMP packets (about 1 hour+), inconsistent with "run 3600 seconds" semantics | Low | Change to time-based loop ping, or clearly document that `count` is packet count |
+| ID | File | Issue | Severity | Status | Suggested Fix |
+|----|------|-------|----------|--------|---------------|
+| BEHAV-01 | `atp_engine.py`, `atp_web.py` | Ping case uses `count=ping_seconds`, sending N packets instead of running N seconds | Low | **Resolved** | `run_ping_stats` supports `duration_seconds` — pings continuously for the specified duration then terminates and parses stats |
 
 ## 5. Documentation (Low Priority)
 
-| ID | File | Issue | Severity | Suggested Fix |
-|----|------|-------|----------|---------------|
-| DOC-01 | Repository root | Missing `README.md`, no installation and usage instructions | Low | Add `README.md` |
-| DOC-02 | Repository root | Missing `.env.example`, users cannot know required environment variables | Low | Add `.env.example` template |
+| ID | File | Issue | Severity | Status | Suggested Fix |
+|----|------|-------|----------|--------|---------------|
+| DOC-01 | Repository root | Missing `README.md` | Low | **Resolved** | `README.md` added with quick start and Docker deployment |
+| DOC-02 | Repository root | Missing `.env.example` | Low | **Resolved** | `.env.example` template lists all required environment variables |
 
 ---
+
 *This document is automatically generated by QA Lead Tester, based on static code review of the repository.*
