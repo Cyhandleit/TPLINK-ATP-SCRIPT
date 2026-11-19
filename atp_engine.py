@@ -501,12 +501,11 @@ def run_stage_2(term_page, rep):
             if time.time() - t0 > 20:
                 break
         mbps = (downloaded * 8) / ((time.time() - t0) * 1_000_000)
+        downloaded_mb = downloaded / (1024 * 1024)
+        elapsed_s = time.time() - t0
         rep.render_terminal_screenshot(
             term_page, f"GET {url_500m}",
-            f"Downloaded: {downloaded /
-                           (1024 *
-                            1024):.2f} MB in {time.time() -
-                                              t0:.1f}s\nAvg Throughput: {mbps:.2f} Mbps",
+            f"Downloaded: {downloaded_mb:.2f} MB in {elapsed_s:.1f}s\nAvg Throughput: {mbps:.2f} Mbps",
             "3.7_P2P_Heavy_Download.png"
         )
         rep.record("3.7", "P2P / Heavy Download (testfile.org)", "PASS" if downloaded > 0 else "FAIL",
