@@ -35,7 +35,7 @@ This document records current known issues of `TPLINK-ATP-SCRIPT` and suggested 
 
 | ID | File | Issue | Severity | Status | Suggested Fix |
 |----|------|-------|----------|--------|---------------|
-| BEHAV-01 | `atp_engine.py`, `atp_web.py` | Ping case uses `count=ping_seconds`, sending N packets instead of running N seconds | Low | **Resolved** | `run_ping_stats` supports `duration_seconds` — pings continuously for the specified duration then terminates and parses stats |
+| BEHAV-01 | `atp_engine.py`, `atp_web.py` | Ping case uses `count=ping_seconds`, sending N packets instead of running N seconds | Low | **Open** | `atp_engine.py:run_ping_stats` supports `duration_seconds`, but `atp_web.py:run_ping_stats` (line 118) still only accepts `count`/`ipv6`. Call site at `atp_web.py:665` passes `duration_seconds=secs` → **TypeError at runtime**. Fix: add `duration_seconds` param to `atp_web.py:run_ping_stats` or import from `atp_engine`. |
 
 ## 5. Documentation (Low Priority)
 
@@ -43,6 +43,21 @@ This document records current known issues of `TPLINK-ATP-SCRIPT` and suggested 
 |----|------|-------|----------|--------|---------------|
 | DOC-01 | Repository root | Missing `README.md` | Low | **Resolved** | `README.md` added with quick start and Docker deployment |
 | DOC-02 | Repository root | Missing `.env.example` | Low | **Resolved** | `.env.example` template lists all required environment variables |
+
+---
+
+## Final Verification (2026-11-20)
+
+- **Verifier**: QA Lead Tester
+- **HEAD Commit**: `3cb413e` (Merge PR #1 from EggY0lk/main)
+- **Verification Methods**:
+  - Static code review of `atp_engine.py`, `atp_web.py`, `atp_config.py`, `.github/workflows/ci.yml`, `Dockerfile`, `README.md`, `.env.example`, `requirements.txt`, `config.json`
+  - Python syntax check (`python3 -m py_compile`) — **PASS**
+  - `flake8` style check (max-line-length=120, ignore E203,W503) — **PASS**
+  - `bandit` security scan — **PASS** (0 issues)
+  - GitHub Actions CI status on `3cb413e` — **success**
+  - GitHub open issues count — **0**
+- **Conclusion**: 14 of 15 known issues confirmed **Resolved**. **BEHAV-01 remains Open** — `atp_web.py:run_ping_stats` lacks `duration_seconds` support while call site at line 665 passes it, causing a runtime `TypeError`. Fix required in `atp_web.py` before full closure.
 
 ---
 
