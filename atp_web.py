@@ -443,7 +443,7 @@ class ATPWebEngine:
                 return ("PASS" if ok else "FAIL", detail, [img1, img2], "\n".join(logs))
 
             if case_id == "3.1":
-                code, out = run_cmd("speedtest-cli --simple", timeout=60)
+                code, out = run_cmd(shlex.split("speedtest-cli --simple"), timeout=60)
                 self._term_snap("speedtest-cli --simple", out, "3.1_LAN_Speedtest.png")
                 return ("PASS" if code == 0 else "FAIL", out.replace("\n", " | "),
                         ["3.1_LAN_Speedtest.png"], "\n".join(logs))
@@ -457,7 +457,7 @@ class ATPWebEngine:
                 ok, cout = self._connect_wifi(ssid, pw)
                 if not ok:
                     return ("SKIP", f"Unable to connect SSID: {ssid}", [], "\n".join(logs))
-                c, o = run_cmd("speedtest-cli --simple", timeout=60)
+                c, o = run_cmd(shlex.split("speedtest-cli --simple"), timeout=60)
                 self._term_snap(f"[{ssid}] speedtest-cli --simple", o, f"{case_id.replace('/', '_')}_WiFi_Speed.png")
                 return ("PASS" if c == 0 else "FAIL", o.replace("\n", " | "), [
                         f"{case_id.replace('/', '_')}_WiFi_Speed.png"], "\n".join(logs))
@@ -915,6 +915,10 @@ def api_config():
     data = request.get_json(force=True)
     # Masked placeholders ('***') from the sanitized frontend view must never overwrite real secrets
     data = {k: v for k, v in data.items() if not (k in SENSITIVE_KEYS and v == "***")}
+    # Retain existing passwords when the caller does not supply new ones, so a
+    # partial change (e.g. gateway_ip only) is not rejected for missing secrets.
+    for key in ("admin_pass", "superadmin_pass"):
+        data.setdefault(key, CONFIG.get(key, ""))
     # 先在副本上校验，失败时不污染全局 CONFIG，避免后续执行逻辑读到非法配置
     candidate = dict(CONFIG)
     candidate.update(data)
@@ -986,11 +990,13 @@ def api_stop():
 
 @app.route("/screenshot/<path:fpath>")
 def screenshot(fpath):
-    full = os.path.join(BASE, fpath)
+    root = os.path.realpath(REPORT_ROOT)
+    full = os.path.realpath(os.path.join(BASE, fpath))
+    if not (full == root or full.startswith(root + os.sep)):
+        return "forbidden", 403
     if not os.path.isfile(full):
         return "not found", 404
-    d, fn = os.path.split(full)
-    return send_from_directory(d, fn)
+    return send_from_directory(os.path.dirname(full), os.path.basename(full))
 
 
 @app.route("/api/reports")
