@@ -35,7 +35,7 @@ This document records current known issues of `TPLINK-ATP-SCRIPT` and suggested 
 
 | ID | File | Issue | Severity | Status | Suggested Fix |
 |----|------|-------|----------|--------|---------------|
-| BEHAV-01 | `atp_engine.py`, `atp_web.py` | Ping case uses `count=ping_seconds`, sending N packets instead of running N seconds | Low | **Open** | `atp_engine.py:run_ping_stats` supports `duration_seconds`, but `atp_web.py:run_ping_stats` (line 118) still only accepts `count`/`ipv6`. Call site at `atp_web.py:665` passes `duration_seconds=secs` → **TypeError at runtime**. Fix: add `duration_seconds` param to `atp_web.py:run_ping_stats` or import from `atp_engine`. |
+| BEHAV-01 | `atp_engine.py`, `atp_web.py` | Ping case uses `count=ping_seconds`, sending N packets instead of running N seconds | Low | **Resolved** | `atp_web.py:run_ping_stats` now accepts `duration_seconds` param with time-based ping (`ping -t` on Windows, plain `ping` elsewhere, terminate → fallback kill). Call site at `atp_web.py:685` passes `duration_seconds=secs`. No more `TypeError`. |
 
 ## 5. Documentation (Low Priority)
 
@@ -57,7 +57,7 @@ This document records current known issues of `TPLINK-ATP-SCRIPT` and suggested 
   - `bandit` security scan — **PASS** (0 issues)
   - GitHub Actions CI status on `3cb413e` — **success**
   - GitHub open issues count — **0**
-- **Conclusion**: 14 of 15 known issues confirmed **Resolved**. **BEHAV-01 remains Open** — `atp_web.py:run_ping_stats` lacks `duration_seconds` support while call site at line 665 passes it, causing a runtime `TypeError`. Fix required in `atp_web.py` before full closure.
+- **Conclusion**: All 15 known issues confirmed **Resolved**. No open issues remain.
 
 ---
 
