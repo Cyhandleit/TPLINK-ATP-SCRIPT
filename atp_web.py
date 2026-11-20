@@ -115,12 +115,32 @@ def run_cmd(cmd, timeout=60, shell=False):
         return -1, "Command timed out"
 
 
-def run_ping_stats(target, count=10, ipv6=False):
+def run_ping_stats(target, count=10, duration_seconds=None, ipv6=False):
     is_win = platform.system() == "Windows"
     f6 = ["-6"] if ipv6 else ["-4"]
-    fc = ["-n", str(count)] if is_win else ["-c", str(count)]
-    cmd = ["ping"] + f6 + fc + [target]
-    code, out = run_cmd(cmd, timeout=count * 2 + 15)
+
+    if duration_seconds is not None:
+        # Time-based: ping continuously for duration_seconds seconds, then
+        # terminate and parse stats. Fixes BEHAV-01 where count=N sent N
+        # packets instead of running for N seconds.
+        cmd = ["ping"] + f6 + (["-t"] if is_win else []) + [target]
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True)  # nosec B603
+        try:
+            out, _ = proc.communicate(timeout=duration_seconds)
+        except subprocess.TimeoutExpired:
+            proc.terminate()
+            try:
+                out, _ = proc.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                out, _ = proc.communicate()
+    else:
+        # Count-based (existing behavior for quick ping tests)
+        fc = ["-n", str(count)] if is_win else ["-c", str(count)]
+        cmd = ["ping"] + f6 + fc + [target]
+        code, out = run_cmd(cmd, timeout=count * 2 + 15)
+
     m = re.search(r"(\d+(?:\.\d+)?)%\s*(?:loss|packet loss|lost)", out, re.IGNORECASE)
     loss = float(m.group(1)) if m else 100.0
     if is_win:
@@ -598,7 +618,7 @@ class ATPWebEngine:
                 if not CONFIG.get("run_destructive"):
                     return ("SKIP",
                             "Destructive test case skipped (enable --run-destructive to execute)",
-                            [], "\\n".join(logs))
+                            [], "\n".join(logs))
                 try:
                     r = requests.post(
                         f"{CONFIG['acs_api_url']}/devices/{CONFIG['acs_device_id']}/tasks?connection_request",
