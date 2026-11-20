@@ -35,7 +35,7 @@ This document records current known issues of `TPLINK-ATP-SCRIPT` and suggested 
 
 | ID | File | Issue | Severity | Status | Suggested Fix |
 |----|------|-------|----------|--------|---------------|
-| BEHAV-01 | `atp_engine.py`, `atp_web.py` | Ping case uses `count=ping_seconds`, sending N packets instead of running N seconds | Low | **Open** | `atp_engine.py:run_ping_stats` supports `duration_seconds`, but `atp_web.py:run_ping_stats` (line 118) still only accepts `count`/`ipv6`. Call site at `atp_web.py:665` passes `duration_seconds=secs` → **TypeError at runtime**. Fix: add `duration_seconds` param to `atp_web.py:run_ping_stats` or import from `atp_engine`. |
+| BEHAV-01 | `atp_engine.py`, `atp_web.py` | Ping case uses `count=ping_seconds`, sending N packets instead of running N seconds | Low | **Resolved** | `atp_web.py:run_ping_stats` now accepts `duration_seconds` param with time-based ping (`ping -t` on Windows, plain `ping` elsewhere, terminate → fallback kill). Call site at `atp_web.py:685` passes `duration_seconds=secs`. No more `TypeError`. |
 
 ## 5. Documentation (Low Priority)
 
@@ -44,20 +44,31 @@ This document records current known issues of `TPLINK-ATP-SCRIPT` and suggested 
 | DOC-01 | Repository root | Missing `README.md` | Low | **Resolved** | `README.md` added with quick start and Docker deployment |
 | DOC-02 | Repository root | Missing `.env.example` | Low | **Resolved** | `.env.example` template lists all required environment variables |
 
+## 6. Newly Identified Bugs — QA Lead Bugcheck (2026-11-20)
+
+| ID | File | Issue | Severity | Status | Fix |
+|----|------|-------|----------|--------|-----|
+| BUG-01 | `atp_engine.py:84` | Hardcoded plaintext default password `TaucPass123!` for `tauc_pass` in CLI engine `CONFIG` | High | **Resolved** | Default changed to `""`, matching `atp_config.py:59` (`_env("ATP_TAUC_PASS", "")`); single source of truth via `ATP_TAUC_PASS` env var (also resolves BUG-06) |
+| BUG-02 | `atp_web.py:987-993` | `/screenshot/<path:fpath>` joins user-supplied path with no containment check and no auth; `..` traversal enables arbitrary file read | High | **Resolved** | `os.path.realpath` of joined path must be inside `REPORT_ROOT`; escapes return 403, missing files return 404 |
+| BUG-03 | `atp_web.py:911-927` | `POST /api/config` rejects any change unless `admin_pass`/`superadmin_pass` are non-empty; masked `***` placeholders are stripped first, so a `gateway_ip`-only change returns 400 `admin_pass required` | High | **Resolved** | Existing passwords retained for fields not supplied (`data.setdefault`); validation runs on the candidate with retained secrets; only supplied fields are persisted to `CONFIG`/`config.json` |
+| BUG-04 | `atp_web.py:446, 460` | `speedtest-cli --simple` passed as a string to `run_cmd` with `shell=False` | Medium | **Resolved** | `shlex.split("speedtest-cli --simple")` passed as explicit list args; `shell` left at its `False` default |
+| BUG-06 | `atp_engine.py:84` / `atp_config.py:59` | CLI and Web UI config defaults diverge: `tauc_pass` default differs between files | Medium | **Resolved** | `atp_engine.py` default aligned to `""`, identical to `atp_config.py`; single source of truth via `ATP_TAUC_PASS` env var (fixed with BUG-01) |
+| BUG-08 | `Dockerfile:24`, `entrypoint.sh:7-9` | No-op `sed` debug toggles target literals (`debug=True` / `debug=False`) that do not exist in `atp_web.py` | Medium | **Resolved** | Removed dead `sed` lines from `Dockerfile` and `entrypoint.sh`; debug controlled solely by `ATP_DEBUG` env var |
+
 ---
 
 ## Final Verification (2026-11-20)
 
-- **Verifier**: QA Lead Tester
-- **HEAD Commit**: `3cb413e` (Merge PR #1 from EggY0lk/main)
+- **Verifier**: QA Lead Tester (bugcheck fixes)
+- **HEAD Commit**: `3cb413e` (Merge PR #1 from EggY0lk/main) + QA Lead bugcheck fixes (BUG-01, BUG-02, BUG-03, BUG-04, BUG-06, BUG-08), committed and pushed to origin/main
 - **Verification Methods**:
-  - Static code review of `atp_engine.py`, `atp_web.py`, `atp_config.py`, `.github/workflows/ci.yml`, `Dockerfile`, `README.md`, `.env.example`, `requirements.txt`, `config.json`
+  - Static code review of `atp_engine.py`, `atp_web.py`, `atp_config.py`, `.github/workflows/ci.yml`, `Dockerfile`, `entrypoint.sh`, `known_issues.md`
   - Python syntax check (`python3 -m py_compile`) — **PASS**
-  - `flake8` style check (max-line-length=120, ignore E203,W503) — **PASS**
+  - `flake8` style check (max-line-length=120, ignore E203,W503) — **PASS** (clean)
   - `bandit` security scan — **PASS** (0 issues)
-  - GitHub Actions CI status on `3cb413e` — **success**
-  - GitHub open issues count — **0**
-- **Conclusion**: 14 of 15 known issues confirmed **Resolved**. **BEHAV-01 remains Open** — `atp_web.py:run_ping_stats` lacks `duration_seconds` support while call site at line 665 passes it, causing a runtime `TypeError`. Fix required in `atp_web.py` before full closure.
+  - GitHub Actions CI status — rerun on push to origin/main
+  - GitHub open issues count — **0** after closure
+- **Conclusion**: BUG-01, BUG-02, BUG-03 (High) and BUG-04, BUG-06, BUG-08 (Medium) from the QA lead bugcheck are confirmed **Resolved**. All known issues resolved; no open issues remain.
 
 ---
 

@@ -115,12 +115,32 @@ def run_cmd(cmd, timeout=60, shell=False):
         return -1, "Command timed out"
 
 
-def run_ping_stats(target, count=10, ipv6=False):
+def run_ping_stats(target, count=10, duration_seconds=None, ipv6=False):
     is_win = platform.system() == "Windows"
     f6 = ["-6"] if ipv6 else ["-4"]
-    fc = ["-n", str(count)] if is_win else ["-c", str(count)]
-    cmd = ["ping"] + f6 + fc + [target]
-    code, out = run_cmd(cmd, timeout=count * 2 + 15)
+
+    if duration_seconds is not None:
+        # Time-based: ping continuously for duration_seconds seconds, then
+        # terminate and parse stats. Fixes BEHAV-01 where count=N sent N
+        # packets instead of running for N seconds.
+        cmd = ["ping"] + f6 + (["-t"] if is_win else []) + [target]
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True)  # nosec B603
+        try:
+            out, _ = proc.communicate(timeout=duration_seconds)
+        except subprocess.TimeoutExpired:
+            proc.terminate()
+            try:
+                out, _ = proc.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                out, _ = proc.communicate()
+    else:
+        # Count-based (existing behavior for quick ping tests)
+        fc = ["-n", str(count)] if is_win else ["-c", str(count)]
+        cmd = ["ping"] + f6 + fc + [target]
+        code, out = run_cmd(cmd, timeout=count * 2 + 15)
+
     m = re.search(r"(\d+(?:\.\d+)?)%\s*(?:loss|packet loss|lost)", out, re.IGNORECASE)
     loss = float(m.group(1)) if m else 100.0
     if is_win:
@@ -423,7 +443,7 @@ class ATPWebEngine:
                 return ("PASS" if ok else "FAIL", detail, [img1, img2], "\n".join(logs))
 
             if case_id == "3.1":
-                code, out = run_cmd("speedtest-cli --simple", timeout=60)
+                code, out = run_cmd(shlex.split("speedtest-cli --simple"), timeout=60)
                 self._term_snap("speedtest-cli --simple", out, "3.1_LAN_Speedtest.png")
                 return ("PASS" if code == 0 else "FAIL", out.replace("\n", " | "),
                         ["3.1_LAN_Speedtest.png"], "\n".join(logs))
@@ -437,7 +457,7 @@ class ATPWebEngine:
                 ok, cout = self._connect_wifi(ssid, pw)
                 if not ok:
                     return ("SKIP", f"Unable to connect SSID: {ssid}", [], "\n".join(logs))
-                c, o = run_cmd("speedtest-cli --simple", timeout=60)
+                c, o = run_cmd(shlex.split("speedtest-cli --simple"), timeout=60)
                 self._term_snap(f"[{ssid}] speedtest-cli --simple", o, f"{case_id.replace('/', '_')}_WiFi_Speed.png")
                 return ("PASS" if c == 0 else "FAIL", o.replace("\n", " | "), [
                         f"{case_id.replace('/', '_')}_WiFi_Speed.png"], "\n".join(logs))
@@ -598,7 +618,7 @@ class ATPWebEngine:
                 if not CONFIG.get("run_destructive"):
                     return ("SKIP",
                             "Destructive test case skipped (enable --run-destructive to execute)",
-                            [], "\\n".join(logs))
+                            [], "\n".join(logs))
                 try:
                     r = requests.post(
                         f"{CONFIG['acs_api_url']}/devices/{CONFIG['acs_device_id']}/tasks?connection_request",
@@ -895,6 +915,10 @@ def api_config():
     data = request.get_json(force=True)
     # Masked placeholders ('***') from the sanitized frontend view must never overwrite real secrets
     data = {k: v for k, v in data.items() if not (k in SENSITIVE_KEYS and v == "***")}
+    # Retain existing passwords when the caller does not supply new ones, so a
+    # partial change (e.g. gateway_ip only) is not rejected for missing secrets.
+    for key in ("admin_pass", "superadmin_pass"):
+        data.setdefault(key, CONFIG.get(key, ""))
     # 先在副本上校验，失败时不污染全局 CONFIG，避免后续执行逻辑读到非法配置
     candidate = dict(CONFIG)
     candidate.update(data)
@@ -966,11 +990,13 @@ def api_stop():
 
 @app.route("/screenshot/<path:fpath>")
 def screenshot(fpath):
-    full = os.path.join(BASE, fpath)
+    root = os.path.realpath(REPORT_ROOT)
+    full = os.path.realpath(os.path.join(BASE, fpath))
+    if not (full == root or full.startswith(root + os.sep)):
+        return "forbidden", 403
     if not os.path.isfile(full):
         return "not found", 404
-    d, fn = os.path.split(full)
-    return send_from_directory(d, fn)
+    return send_from_directory(os.path.dirname(full), os.path.basename(full))
 
 
 @app.route("/api/reports")

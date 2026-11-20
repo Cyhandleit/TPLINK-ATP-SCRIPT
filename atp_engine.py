@@ -81,7 +81,7 @@ CONFIG = {
     "acs_device_id": "001122-EX820v-SN12345678",
     "tauc_url": "https://tauc.tp-link.com",
     "tauc_user": _env("ATP_TAUC_USER", "tauc_tester@example.com"),
-    "tauc_pass": _env("ATP_TAUC_PASS", "TaucPass123!"),
+    "tauc_pass": _env("ATP_TAUC_PASS", ""),
     "device_sn": "2245123456789",
     # Black out sensitive regions in screenshots: {screenshot filename
     # fragment: [(x1,y1,x2,y2), ...]}, fill in coordinates based on actual
