@@ -10,7 +10,6 @@ import os
 import re
 import time
 import html
-import shlex
 import argparse
 import platform
 import threading
@@ -282,16 +281,15 @@ def connect_wifi(ssid, password):
         </WLANProfile>"""
         with open("wifi_profile.xml", "w", encoding="utf-8") as f:
             f.write(profile_xml)
-        iface = shlex.quote(CONFIG["wifi_iface"])
-        run_cmd(f'netsh wlan add profile filename="wifi_profile.xml" interface={iface}', shell=True)  # nosec B604
-        code, out = run_cmd(f'netsh wlan connect name="{ssid}" interface={iface}', shell=True)  # nosec B604
+        iface = CONFIG["wifi_iface"]
+        run_cmd(["netsh", "wlan", "add", "profile", "filename=wifi_profile.xml", f"interface={iface}"])
+        code, out = run_cmd(["netsh", "wlan", "connect", f'name="{ssid}"', f"interface={iface}"])
         time.sleep(8)
         return code == 0, out
     else:
-        iface = shlex.quote(CONFIG["wifi_iface"])
+        iface = CONFIG["wifi_iface"]
         code, out = run_cmd(
-            f'nmcli device wifi connect "{ssid}" password "{password}" ifname {iface}',
-            shell=True,  # nosec B604
+            ["nmcli", "device", "wifi", "connect", ssid, "password", password, "ifname", iface],
         )
         time.sleep(8)
         return code == 0, out

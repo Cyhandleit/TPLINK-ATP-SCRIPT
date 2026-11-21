@@ -776,11 +776,11 @@ class ATPWebEngine:
     def _connect_wifi(self, ssid, pw):
         sys_os = platform.system()
         if sys_os == "Windows":
-            iface = shlex.quote(CONFIG["wifi_iface"])
-            run_cmd(f'netsh wlan connect name="{ssid}" interface={iface}', shell=True)  # nosec B604
+            iface = CONFIG["wifi_iface"]
+            run_cmd(["netsh", "wlan", "connect", f'name="{ssid}"', f"interface={iface}"])
         else:
-            iface = shlex.quote(CONFIG["wifi_iface"])
-            run_cmd(f'nmcli device wifi connect "{ssid}" password "{pw}" ifname {iface}', shell=True)  # nosec B604
+            iface = CONFIG["wifi_iface"]
+            run_cmd(["nmcli", "device", "wifi", "connect", ssid, "password", pw, "ifname", iface])
         time.sleep(8)
         loss, _, _, _ = run_ping_stats(CONFIG["gateway_ip"], count=2)
         return loss == 0, ""
