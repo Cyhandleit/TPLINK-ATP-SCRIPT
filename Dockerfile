@@ -12,7 +12,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
     playwright install-deps chromium
 
 # curl: for HEALTHCHECK (http://127.0.0.1:5000/) and container troubleshooting, install single package only, keep lightweight
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \
+# iputils-ping: the ping-based cases (2.2, 2.3, 2.5/7.2, 4.8) call `ping`, which the
+# Playwright base image does not ship — without it those cases fail with ENOENT.
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates iputils-ping && \
     rm -rf /var/lib/apt/lists/*
 
 # Application code

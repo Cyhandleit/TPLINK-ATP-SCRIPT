@@ -8,6 +8,7 @@ Coverage: 1.1, 1.3, 2.1-2.5, 3.1-3.7, 4.1-4.9, 4.12, 4.15, 6.1, 7.2-7.4, 9.1-9.6
 
 import os
 import re
+import ssl
 import time
 import html
 import argparse
@@ -335,11 +336,17 @@ def wait_router_online(timeout=180):
     start = time.time()
     time.sleep(15)
     scheme = CONFIG.get("gateway_scheme", "http")
+    # Router firmware redirects to HTTPS with a self-signed certificate, so the
+    # certificate must not be verified or the check always fails.
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
     while time.time() - start < timeout:
         loss, _, _, _ = run_ping_stats(CONFIG["gateway_ip"], count=2)
         if loss == 0:
             try:
-                urllib.request.urlopen(f"{scheme}://{CONFIG['gateway_ip']}", timeout=5)  # nosec B310
+                urllib.request.urlopen(  # nosec B310 - local router, unverified by design
+                    f"{scheme}://{CONFIG['gateway_ip']}", timeout=5, context=ctx)
                 return True
             except Exception:  # nosec B110
                 pass
@@ -666,7 +673,7 @@ def main():
     reporter = ATPReporter()
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=not args.headed)
-        context = browser.new_context(viewport={"width": 1366, "height": 850}, ignore_https_errors=args.headed)
+        context = browser.new_context(viewport={"width": 1366, "height": 850}, ignore_https_errors=True)
         if args.headed:
             print("[WARN] Headed mode: HTTPS certificate errors are ignored — do not use on production networks.")
         router_page = context.new_page()
@@ -699,7 +706,7 @@ def run_stage(stage, ping_seconds=300, run_destructive=False, headed=False):
     reporter = ATPReporter()
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=not headed)
-        context = browser.new_context(viewport={"width": 1366, "height": 850}, ignore_https_errors=headed)
+        context = browser.new_context(viewport={"width": 1366, "height": 850}, ignore_https_errors=True)
         router_page = context.new_page()
         term_page = context.new_page()
         ctrl = RouterWebController(router_page, reporter)
