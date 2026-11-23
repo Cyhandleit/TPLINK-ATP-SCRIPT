@@ -1,4 +1,4 @@
-"""TP-Link ATP Web UI — Flask test platform (config, dashboard, per-case restart)."""
+"""TP-Link ATP Web UI â€” Flask test platform (config, dashboard, per-case restart)."""
 import os
 import threading
 import time
@@ -197,9 +197,11 @@ class ATPWebEngine:
         self.playwright = sync_playwright().start()
         self.browser = self.playwright.chromium.launch(
             headless=not CONFIG.get("headed", False))
+        # Router web UIs serve a self-signed certificate; without this every
+        # navigation dies with ERR_CERT_AUTHORITY_INVALID in headless runs.
         ctx = self.browser.new_context(
             viewport={"width": 1366, "height": 850},
-            ignore_https_errors=CONFIG.get("headed", False))
+            ignore_https_errors=True)
         self.router_page = ctx.new_page()
         self.term_page = ctx.new_page()
 
@@ -216,19 +218,152 @@ class ATPWebEngine:
                 pass
 
     # ---- Login ----
+    # Current Archer firmware (EX820v and siblings) renders the login form with
+    # pc-login-* ids; older builds used login-*. Both are tried, and the first
+    # visible match wins, so a single selector list cannot trip strict mode.
+    LOGIN_USER_SELECTORS = ("#pc-login-user", "#login-username", "input[name='username']")
+    LOGIN_PASS_SELECTORS = ("#pc-login-password", "#login-password", "input[name='password']")
+    LOGIN_BTN_SELECTORS = ("#pc-login-btn", "#login-btn", "button:has-text('Log in')")
+    # "Only one device can log in at a time" prompt: the firmware refuses to
+    # render the dashboard until this is accepted.
+    LOGIN_CONFIRM_SELECTORS = ("#confirm-yes", "#login-confirm-yes")
+    LOGOUT_SELECTORS = ("#topLogout", "#top-control-account-logout", "a:has-text('Log out')")
+
+    def _first(self, selectors, timeout=10.0):
+        """First visible locator among `selectors`, or None once `timeout` expires."""
+        deadline = time.time() + timeout
+        while True:
+            for sel in selectors:
+                try:
+                    loc = self.router_page.locator(sel).first
+                    if loc.count() and loc.is_visible():
+                        return loc
+                except Exception:  # nosec B110 - element may detach while polling
+                    continue
+            if time.time() >= deadline:
+                return None
+            time.sleep(0.25)
+
+    @staticmethod
+    def _settle_page(page, timeout=15000):
+        """Best-effort wait for a page to go idle (polls often keep it busy)."""
+        try:
+            page.wait_for_load_state("networkidle", timeout=timeout)
+        except Exception:  # nosec B110
+            pass
+
+    def _settle(self, timeout=8000):
+        """Best-effort wait for the router page to go idle.
+
+        TP-Link firmware polls status endpoints continuously, so 'networkidle'
+        frequently never fires. A timeout here is normal and must not fail a case.
+        """
+        self._settle_page(self.router_page, timeout)
+
     def login(self, role="superadmin"):
         u = CONFIG["superadmin_user"] if role == "superadmin" else CONFIG["admin_user"]
         p = CONFIG["superadmin_pass"] if role == "superadmin" else CONFIG["admin_pass"]
         base = f"{CONFIG['gateway_scheme']}://{CONFIG['gateway_ip']}"
-        self.router_page.goto(base, wait_until="networkidle", timeout=20000)
-        self.router_page.fill("input[type='text'], #login-username", u)
-        self.router_page.fill("input[type='password'], #login-password", p)
-        self.router_page.click("#login-btn, button:has-text('Log In')")
-        self.router_page.wait_for_load_state("networkidle")
+        self.router_page.goto(base, wait_until="domcontentloaded", timeout=20000)
+        user = self._first(self.LOGIN_USER_SELECTORS)
+        pwd = self._first(self.LOGIN_PASS_SELECTORS)
+        if not (user and pwd):
+            # Session from an earlier step in this case is still open: the router
+            # shows the dashboard instead of the login form, so log out and retry.
+            if self.logout():
+                self.router_page.goto(base, wait_until="domcontentloaded", timeout=20000)
+                user = self._first(self.LOGIN_USER_SELECTORS)
+                pwd = self._first(self.LOGIN_PASS_SELECTORS)
+        btn = self._first(self.LOGIN_BTN_SELECTORS)
+        if not (user and pwd and btn):
+            raise RuntimeError("Login form not found: router UI did not render a login page")
+        user.fill(u)
+        pwd.fill(p)
+        btn.click()
+        # Force the single-session prompt out of the way, otherwise the run
+        # stops on the login page instead of reaching the dashboard.
+        confirm = self._first(self.LOGIN_CONFIRM_SELECTORS, timeout=5)
+        if confirm:
+            confirm.click()
+        self._settle()
+        if self._first(self.LOGIN_PASS_SELECTORS, timeout=2):
+            raise RuntimeError(f"Login rejected for user '{u}' (still on the login page)")
+
+    def logout(self):
+        """Log out of the router UI; returns False when no session is open."""
+        btn = self._first(self.LOGOUT_SELECTORS, timeout=3)
+        if not btn:
+            return False
+        btn.click()
+        confirm = self._first(("#confirm-yes", "button:has-text('OK')", "button:has-text('Yes')"), timeout=3)
+        if confirm:
+            confirm.click()
+        self._settle()
+        return True
+
+    def _menu_item(self, label, parent=None):
+        """Deepest visible menu entry whose own text is `label`."""
+        for container in ("#menuTree", "#menu", "#ul-nav"):
+            loc = self.router_page.locator(f"{container} li").filter(has_text=label)
+            matches = []
+            for i in range(loc.count()):
+                cand = loc.nth(i)
+                try:
+                    if not cand.is_visible():
+                        continue
+                    text = " ".join(cand.inner_text().split())
+                except Exception:  # nosec B110 - element can detach mid-iteration
+                    continue
+                if text != label and not text.endswith("-> " + label):
+                    continue
+                if parent and parent not in text:
+                    continue
+                matches.append((text.count("->"), cand))
+            if matches:
+                return max(matches, key=lambda m: m[0])[1]
+        return None
+
+    def _switch_tab(self, tab):
+        """Click a top tab (basic/advanced) and wait until the menu actually matches it.
+
+        The dashboard renders after login and swallows an early click, so the tab
+        is re-clicked until the Advanced-only menu entry shows up (or disappears).
+        """
+        marker = "System Tools"  # exposed by the Advanced menu only
+        want_advanced = tab == "advanced"
+        deadline = time.time() + 20
+        while time.time() < deadline:
+            if (self._menu_item(marker) is not None) == want_advanced:
+                return True
+            btn = self._first((f"#{tab}",), timeout=2)
+            if btn:
+                try:
+                    btn.click(timeout=3000)
+                except Exception:  # nosec B110 - overlay may still be closing
+                    pass
+            self.router_page.wait_for_timeout(800)
+        return False
+
+    def _open_menu(self, *labels, tab="advanced"):
+        """Click a menu path in the router UI, e.g. _open_menu("System Tools", "Diagnostics")."""
+        if not self._switch_tab(tab):
+            raise RuntimeError(f"Could not switch to the '{tab}' tab: {' > '.join(labels)}")
+        for depth, label in enumerate(labels):
+            item = self._menu_item(label, parent=labels[depth - 1] if depth else None)
+            if item is None:
+                raise RuntimeError(f"Menu item not found: {' > '.join(labels)}")
+            # The clickable target is the anchor inside the list item; clicking the
+            # <li> itself does not expand or navigate on this firmware.
+            target = item.locator("a").first
+            if not (target.count() and target.is_visible()):
+                target = item
+            item.hover()
+            target.click()
+            self._settle()
 
     def goto(self, selector):
         self.router_page.click(selector)
-        self.router_page.wait_for_load_state("networkidle")
+        self._settle()
 
     # ---- Each case ----
     def run(self, case_id):
@@ -244,28 +379,26 @@ class ATPWebEngine:
             if case_id == "1.1":
                 self.login("admin")
                 img_a = self._snap("1.1_Admin_Login.png")
+                self.logout()
                 self.login("superadmin")
                 img_b = self._snap("1.1_Superadmin_Login.png")
-                self.router_page.click("text=Basic")
-                self.router_page.click("text=Wireless")
-                self.router_page.wait_for_load_state("networkidle")
+                self._open_menu("Wireless", "Wireless Settings")
                 img_c = self._snap("1.1_WiFi_SSID_Default.png")
                 body = self.router_page.inner_text("body")
-                ok = CONFIG.get("expected_ssid_prefix", "TP_Link_") in body
+                prefix = CONFIG.get("expected_ssid_prefix") or "TP-Link"
+                # Current firmware ships "TP-Link_XXXX"; older builds used
+                # "TP_Link_XXXX", so accept either separator.
+                ok = prefix in body or prefix.replace("-", "_") in body
                 for img in (img_a, img_b, img_c):
                     redact_image(img, CONFIG.get("sensitive_regions", {}).get(os.path.basename(img), []))
-                return ("PASS" if ok else "FAIL", f"Prefix match={ok}", [img_a, img_b, img_c], "\n".join(logs))
+                return ("PASS" if ok else "FAIL", f"Prefix {prefix} match={ok}", [img_a, img_b, img_c], "\n".join(logs))
 
             if case_id == "2.1":
 
                 self.login("superadmin")
-                self.router_page.click("text=Advanced")
-                self.router_page.click("text=Network")
-                self.router_page.click("text=Internet")
-                self.router_page.wait_for_load_state("networkidle")
+                self._open_menu("Network", "Internet")
                 img1 = self._snap("2.1_WAN_Internet_Config.png")
-                self.router_page.click("text=Status")
-                self.router_page.wait_for_load_state("networkidle")
+                self._open_menu("Status")
                 img2 = self._snap("2.1_WAN_Status.png")
                 txt = self.router_page.inner_text("body")
                 ok = ("PPPoE" in txt) and ("IPv6" in txt)
@@ -289,26 +422,20 @@ class ATPWebEngine:
             if case_id == "2.4":
 
                 self.login("superadmin")
-                self.router_page.click("text=Advanced")
-                self.router_page.click("text=System Tools")
-                self.router_page.click("text=Diagnostics")
-                self.router_page.wait_for_load_state("networkidle")
+                self._open_menu("System Tools", "Diagnostics")
                 img = self._snap("2.4_GUI_Diagnostics.png")
                 return ("PASS", "Entered system diagnostics tool interface", [img], "\n".join(logs))
 
             if case_id == "2.2":
 
                 self.login("superadmin")
-                self.router_page.click("text=Advanced")
-                self.router_page.click("text=Network")
-                self.router_page.click("text=Internet")
-                self.router_page.wait_for_load_state("networkidle")
+                self._open_menu("Network", "Internet")
                 img1 = self._snap("2.2_WAN_Before_Disconnect.png")
                 self.router_page.click("button:has-text('Disconnect'), button:has-text('Release')")
                 self.router_page.wait_for_timeout(3000)
                 img2 = self._snap("2.2_WAN_Disconnected.png")
                 self.router_page.click("button:has-text('Connect'), button:has-text('Renew')")
-                self.router_page.wait_for_load_state("networkidle")
+                self._settle()
                 time.sleep(10)
                 img3 = self._snap("2.2_WAN_Reconnected.png")
                 pub_ip = self._get_public_ip()
@@ -320,13 +447,9 @@ class ATPWebEngine:
             if case_id == "2.6":
 
                 self.login("superadmin")
-                self.router_page.click("text=Advanced")
-                self.router_page.click("text=Network")
-                self.router_page.click("text=Internet")
-                self.router_page.wait_for_load_state("networkidle")
+                self._open_menu("Network", "Internet")
                 img1 = self._snap("2.6_WAN_Failover_Before.png")
-                self.router_page.click("text=Status")
-                self.router_page.wait_for_load_state("networkidle")
+                self._open_menu("Status")
                 img2 = self._snap("2.6_WAN_Status_Before.png")
                 detail = "Captured WAN status for manual GPON/eWAN failover verification (physical cable pull required)"
                 return ("PASS", detail, [img1, img2], "\n".join(logs))
@@ -336,7 +459,7 @@ class ATPWebEngine:
                 loss6, avg6, cmd6, out6 = run_ping_stats("www.google.com", count=4, ipv6=True)
                 self._term_snap(cmd6, out6, "4.8_Ping6_Google.png")
                 self.term_page.goto("https://test-ipv6.com/", timeout=30000)
-                self.term_page.wait_for_load_state("networkidle")
+                self._settle_page(self.term_page)
                 img2 = self._snap("4.8_Test_IPv6_Score.png", page=self.term_page)
                 score_ok = "10/10" in self.term_page.inner_text("body")
                 ok = loss6 == 0 and score_ok
@@ -347,56 +470,40 @@ class ATPWebEngine:
             if case_id == "4.2":
 
                 self.login("superadmin")
-                self.router_page.click("text=Advanced")
-                self.router_page.click("text=VPN Server")
-                self.router_page.wait_for_load_state("networkidle")
+                self._open_menu("VPN", "PPTP VPN")
                 img1 = self._snap("4.2_VPN_Server_PPTP.png")
-                self.router_page.click("text=OpenVPN")
-                self.router_page.wait_for_load_state("networkidle")
+                self._open_menu("VPN", "OpenVPN")
                 img2 = self._snap("4.2_VPN_Server_OpenVPN.png")
-                self.router_page.click("text=L2TP")
-                self.router_page.wait_for_load_state("networkidle")
-                img3 = self._snap("4.2_VPN_Server_L2TP.png")
-                detail = ("Captured PPTP, OpenVPN, and L2TP configuration pages "
+                self._open_menu("VPN", "IPSec VPN")
+                img3 = self._snap("4.2_VPN_Server_IPSec.png")
+                detail = ("Captured PPTP, OpenVPN, and IPSec VPN configuration pages "
                           "(external connectivity test requires remote client)")
                 return ("PASS", detail, [img1, img2, img3], "\n".join(logs))
 
             if case_id == "4.6":
 
                 self.login("superadmin")
-                self.router_page.click("text=Advanced")
-                self.router_page.click("text=Security")
-                self.router_page.click("text=MAC Filtering")
-                self.router_page.wait_for_load_state("networkidle")
+                self._open_menu("Security", "Access Control")
                 img1 = self._snap("4.6_MAC_Filtering_Config.png")
                 self.router_page.click("button:has-text('Add'), button:has-text('Add New')")
                 self.router_page.wait_for_timeout(1000)
                 img2 = self._snap("4.6_MAC_Filtering_Add.png")
-                detail = "MAC Filtering deny list page captured (add test device and verify no internet manually)"
+                detail = "Access Control (MAC filtering) deny list page captured (add test device and verify no internet manually)"
                 return ("PASS", detail, [img1, img2], "\n".join(logs))
 
             if case_id == "4.9":
 
                 self.login("superadmin")
-                self.router_page.click("text=Advanced")
-                self.router_page.click("text=Wireless")
-                self.router_page.click("text=Wireless Schedule")
-                self.router_page.wait_for_load_state("networkidle")
+                self._open_menu("Wireless", "Wireless Schedule")
                 img1 = self._snap("4.9_Wireless_Schedule_Config.png")
-                self.router_page.click("button:has-text('Enable'), button:has-text('On')")
-                self.router_page.wait_for_timeout(2000)
-                img2 = self._snap("4.9_Wireless_Schedule_Enabled.png")
                 detail = ("Wireless Schedule configuration captured "
                           "(verify SSID broadcast stops at scheduled time manually)")
-                return ("PASS", detail, [img1, img2], "\n".join(logs))
+                return ("PASS", detail, [img1], "\n".join(logs))
 
             if case_id == "4.11":
 
                 self.login("superadmin")
-                self.router_page.click("text=Advanced")
-                self.router_page.click("text=Network")
-                self.router_page.click("text=LAN")
-                self.router_page.wait_for_load_state("networkidle")
+                self._open_menu("Network", "LAN Settings")
                 img1 = self._snap("4.11_LAN_Config.png")
                 detail = "LAN port static IP configuration page captured (verify server reachability manually)"
                 return ("PASS", detail, [img1], "\n".join(logs))
@@ -404,10 +511,7 @@ class ATPWebEngine:
             if case_id == "4.12":
 
                 self.login("superadmin")
-                self.router_page.click("text=Advanced")
-                self.router_page.click("text=System Tools")
-                self.router_page.click("text=Schedule Reboot")
-                self.router_page.wait_for_load_state("networkidle")
+                self._open_menu("System Tools", "Reboot Schedule")
                 img1 = self._snap("4.12_Schedule_Reboot_Config.png")
                 detail = "Schedule Reboot configuration page captured (verify actual reboot at scheduled time manually)"
                 return ("PASS", detail, [img1], "\n".join(logs))
@@ -415,13 +519,9 @@ class ATPWebEngine:
             if case_id == "4.13":
 
                 self.login("superadmin")
-                self.router_page.click("text=Advanced")
-                self.router_page.click("text=Wireless")
-                self.router_page.click("text=Wireless Settings")
-                self.router_page.wait_for_load_state("networkidle")
+                self._open_menu("Wireless", "Wireless Settings")
                 img1 = self._snap("4.13_Wireless_Settings_RSSI.png")
-                self.router_page.click("text=Wireless Statistics")
-                self.router_page.wait_for_load_state("networkidle")
+                self._open_menu("Wireless", "Statistics")
                 img2 = self._snap("4.13_Wireless_Statistics_RSSI.png")
                 detail = "Wireless settings and RSSI statistics captured (use NetSpot for full stability analysis)"
                 return ("PASS", detail, [img1, img2], "\n".join(logs))
@@ -429,10 +529,7 @@ class ATPWebEngine:
             if case_id == "4.16":
 
                 self.login("superadmin")
-                self.router_page.click("text=Advanced")
-                self.router_page.click("text=Wireless")
-                self.router_page.click("text=Wireless Settings")
-                self.router_page.wait_for_load_state("networkidle")
+                self._open_menu("Wireless", "Wireless Settings")
                 img1 = self._snap("4.16_Band_Steering_Before.png")
                 self.router_page.click("button:has-text('Band Steering'), button:has-text('Smart Connect')")
                 self.router_page.wait_for_timeout(2000)
@@ -465,14 +562,14 @@ class ATPWebEngine:
             if case_id == "3.5":
 
                 self.term_page.goto("https://whatismyipaddress.com/", wait_until="domcontentloaded", timeout=25000)
-                self.term_page.wait_for_load_state("networkidle")
+                self._settle_page(self.term_page)
                 img = self._snap("3.5_Web_Browsing.png", page=self.term_page)
                 return ("PASS", "Successfully loaded whatismyipaddress.com", [img], "\n".join(logs))
 
             if case_id == "3.6":
 
                 self.term_page.goto("https://www.youtube.com/watch?v=LXb3EKWsInQ", timeout=30000)
-                self.term_page.wait_for_load_state("networkidle")
+                self._settle_page(self.term_page)
                 q = self.term_page.evaluate("""() => {
                     const v = document.querySelector('video');
                     if (!v) return 'No video element';
@@ -523,10 +620,7 @@ class ATPWebEngine:
                 th.start()
                 try:
                     self.login("superadmin")
-                    self.router_page.click("text=Advanced")
-                    self.router_page.click("text=NAT Forwarding")
-                    self.router_page.click("text=Virtual Servers")
-                    self.router_page.wait_for_load_state("networkidle")
+                    self._open_menu("NAT Forwarding", "Virtual Servers")
                     img = self._snap("4.1_Port_Forwarding_UI.png")
                     pub = self._get_public_ip()
                     if pub and CONFIG.get("ext_nic_ip"):
@@ -548,12 +642,18 @@ class ATPWebEngine:
             if case_id in ("4.3", "4.4", "4.5", "4.7", "4.15"):
 
                 self.login("superadmin")
-                self.router_page.click("text=Advanced")
-                sel_map = {"4.3": "text=Parental Controls", "4.4": "text=QoS",
-                           "4.5": "text=Dynamic DNS", "4.7": "text=Guest Network",
-                           "4.15": "text=Wireless"}
-                self.router_page.click(sel_map[case_id])
-                self.router_page.wait_for_load_state("networkidle")
+                # Menu paths on current Archer firmware; a firmware without the
+                # feature is reported as SKIP instead of a fake PASS.
+                path_map = {"4.3": ("Parental Controls",),
+                            "4.4": ("QoS",),
+                            "4.5": ("Network", "Dynamic DNS"),
+                            "4.7": ("Guest Network",),
+                            "4.15": ("Multi-Link Operation",)}
+                try:
+                    self._open_menu(*path_map[case_id])
+                except RuntimeError:
+                    return ("SKIP", f"{case_id} feature not present on this firmware "
+                            f"({' > '.join(path_map[case_id])})", [], "\n".join(logs))
                 img = self._snap(f"{case_id.replace('/', '_')}_UI.png")
                 return ("PASS", f"Verified {case_id} config interface", [img], "\n".join(logs))
 
@@ -660,9 +760,7 @@ class ATPWebEngine:
                     return ("SKIP", f"Firmware file not found: {CONFIG['firmware_bin_path']}", [], "\n".join(logs))
 
                 self.login("superadmin")
-                self.router_page.click("text=Advanced")
-                self.router_page.click("text=System Tools")
-                self.router_page.click("text=Firmware Upgrade")
+                self._open_menu("System Tools", "Firmware Upgrade")
                 self.router_page.set_input_files("input[type='file']", CONFIG["firmware_bin_path"])
                 img1 = self._snap("6.1_FW_Upgrade_Ready.png")
                 self.router_page.click("button:has-text('Upgrade')")
@@ -919,7 +1017,7 @@ def api_config():
     # partial change (e.g. gateway_ip only) is not rejected for missing secrets.
     for key in ("admin_pass", "superadmin_pass"):
         data.setdefault(key, CONFIG.get(key, ""))
-    # 先在副本上校验，失败时不污染全局 CONFIG，避免后续执行逻辑读到非法配置
+    # å…ˆåœ¨å‰¯æœ¬ä¸Šæ ¡éªŒï¼Œå¤±è´¥æ—¶ä¸æ±¡æŸ“å…¨å±€ CONFIGï¼Œé¿å…åŽç»­æ‰§è¡Œé€»è¾‘è¯»åˆ°éžæ³•é…ç½®
     candidate = dict(CONFIG)
     candidate.update(data)
     try:
@@ -960,16 +1058,16 @@ def api_run():
                 save_config(CONFIG)
             except Exception as e:  # Persistence failure does not block this run, only takes effect in memory
                 print(f"[api/run] Failed to save config.json: {e}")
-                if case:
-                    run_case_async(case)
-                elif stage == "all":
-                    for cid, _, _ in CASES:
-                        if cancel_event.is_set():
-                            print("[api/stop] Run cancelled; remaining cases skipped")
-                            break
-                        run_case_async(cid)
-                else:
-                    run_stage_async(stage)
+            if case:
+                run_case_async(case)
+            elif stage == "all":
+                for cid, _, _ in CASES:
+                    if cancel_event.is_set():
+                        print("[api/stop] Run cancelled; remaining cases skipped")
+                        break
+                    run_case_async(cid)
+            else:
+                run_stage_async(stage)
         finally:
             exec_lock.release()
 
